@@ -1,0 +1,35 @@
+[
+  {
+    "id": "demo-conversation-001",
+    "title": "Synthetic demo — a calculation with two endings",
+    "create_time": 1735689600,
+    "current_node": "demo-answer",
+    "mapping": {
+      "demo-root": {"id": "demo-root", "message": null, "parent": null, "children": ["demo-user"]},
+      "demo-user": {
+        "id": "demo-user", "parent": "demo-root", "children": ["demo-system"],
+        "message": {"id": "demo-user", "author": {"role": "user"}, "create_time": 1735689601, "content": {"content_type": "text", "parts": ["What is 6 times 7? This is an invented example."]}, "metadata": {"request_id": "demo-request-001"}}
+      },
+      "demo-system": {
+        "id": "demo-system", "parent": "demo-user", "children": ["demo-code"],
+        "message": {"id": "demo-system", "author": {"role": "system"}, "create_time": 1735689602, "content": {"content_type": "text", "parts": [""]}, "metadata": {"is_visually_hidden_from_conversation": true, "demo_only": true}}
+      },
+      "demo-code": {
+        "id": "demo-code", "parent": "demo-system", "children": ["demo-tool"],
+        "message": {"id": "demo-code", "author": {"role": "assistant"}, "recipient": "python", "create_time": 1735689603, "content": {"content_type": "code", "text": "6 * 7"}, "metadata": {"parent_id": "demo-system", "request_id": "demo-request-001", "model_slug": "synthetic-model"}, "end_turn": false}
+      },
+      "demo-tool": {
+        "id": "demo-tool", "parent": "demo-code", "children": ["demo-answer", "demo-alternate"],
+        "message": {"id": "demo-tool", "author": {"role": "tool", "name": "python"}, "create_time": 1735689604, "content": {"content_type": "execution_output", "text": "42"}, "metadata": {"parent_id": "demo-code", "request_id": "demo-request-001", "aggregate_result": {"status": "success", "demo_only": true}}}
+      },
+      "demo-answer": {
+        "id": "demo-answer", "parent": "demo-tool", "children": [],
+        "message": {"id": "demo-answer", "author": {"role": "assistant"}, "create_time": 1735689605, "content": {"content_type": "text", "parts": ["The answer is 42. Follow my parent to see the recorded tool result."]}, "metadata": {"parent_id": "demo-tool", "request_id": "demo-request-001", "model_slug": "synthetic-model"}, "end_turn": true}
+      },
+      "demo-alternate": {
+        "id": "demo-alternate", "parent": "demo-tool", "children": [],
+        "message": {"id": "demo-alternate", "author": {"role": "assistant"}, "create_time": 1735689606, "content": {"content_type": "text", "parts": ["An alternate branch: six groups of seven gives forty-two."]}, "metadata": {"parent_id": "demo-user", "demo_note": "This deliberate mismatch is a review marker, not proof of a runtime failure."}, "end_turn": true}
+      }
+    }
+  }
+]

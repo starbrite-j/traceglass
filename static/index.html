@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Local-first OpenAI export lineage and metadata observatory">
+  <title>Traceglass — Lineage Observatory</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/constellation.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <button class="brand" id="homeButton" aria-label="Reset view">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span><strong>TRACEGLASS</strong><small>Lineage Observatory</small></span>
+      </button>
+      <div class="global-stats" aria-label="Corpus statistics">
+        <span><b id="statMessages">0</b> records</span>
+        <span><b id="statEvents">0</b> unique nodes</span>
+        <span><b id="statConversations">0</b> conversations</span>
+        <span><b id="statAnomalies">0</b> markers</span>
+      </div>
+      <div class="top-actions">
+        <button class="chrome-button" id="openInvestigation">INVESTIGATE ↗</button>
+        <button class="quiet-button" id="timeModeButton" title="Toggle local and UTC time">LOCAL TIME</button>
+        <button class="chrome-button" id="openImportButton"><span>＋</span> LOAD SOURCE</button>
+      </div>
+    </header>
+
+    <aside class="side-rail" aria-label="Dataset filters">
+      <section class="rail-section corpus-section">
+        <div class="section-label"><span>DATASET</span><b id="datasetCount">0</b></div>
+        <label class="dataset-picker">
+          <select id="datasetSelect" aria-label="Active dataset"></select>
+          <small id="datasetScope">No dataset loaded</small>
+        </label>
+        <div class="section-label source-label"><span>SOURCES</span><b id="sourceCount">0</b></div>
+        <div id="sourceList" class="source-list"></div>
+      </section>
+
+      <section class="rail-section">
+        <div class="section-label"><span>ROLE</span><button id="clearRole" class="micro-button">CLEAR</button></div>
+        <div id="roleFilters" class="filter-stack"></div>
+      </section>
+
+      <section class="rail-section anomaly-section">
+        <div class="section-label"><span>STRUCTURAL MARKERS</span><button id="clearAnomaly" class="micro-button">CLEAR</button></div>
+        <button class="filter-row all-markers" data-anomaly="any">
+          <i class="severity-orbit"></i><span>Any marker</span><b id="anyMarkerCount">0</b>
+        </button>
+        <div id="anomalyFilters" class="filter-stack"></div>
+      </section>
+
+      <section class="rail-section provenance-note">
+        <span class="lock-symbol">⌁</span>
+        <p><strong>LOCAL / READ-ONLY SOURCES</strong>Your archives stay untouched. Notes and indexes live only in Traceglass.</p>
+      </section>
+    </aside>
+
+    <main class="workspace">
+      <div class="workspace-head">
+        <div class="view-switch" role="tablist" aria-label="Primary view">
+          <button class="active" data-view="ledger" role="tab" aria-selected="true">LEDGER</button>
+          <button data-view="lineage" role="tab" aria-selected="false">LINEAGE</button>
+          <button data-view="json" role="tab" aria-selected="false">JSON</button>
+        </div>
+        <label class="search-box">
+          <span aria-hidden="true">⌕</span>
+          <select id="searchMode" aria-label="Search scope"><option value="auto">AUTO</option><option value="text">TEXT</option><option value="ids">IDs</option><option value="metadata">METADATA</option></select>
+          <input id="searchInput" type="search" aria-label="Search selected scope" placeholder="Text, ID fragment, or metadata…" autocomplete="off">
+          <kbd>⌘ K</kbd>
+        </label>
+        <div class="result-position">
+          <span id="resultRange">0–0</span><small id="resultTotal">of 0</small>
+        </div>
+      </div>
+
+      <p id="searchScopeNote" class="search-scope-note" role="status">Searches the selected dataset and filters, not every original file.</p>
+
+      <details class="query-tools" id="queryTools">
+        <summary>PRECISION SEARCH &amp; SAVED VIEWS <span id="exactStatus"></span></summary>
+        <div class="query-grid">
+          <label>Metadata path<input id="metaPath" placeholder="content_references[*].items[*].attribution" aria-label="Exact metadata path"></label>
+          <label>Type<select id="metaType" aria-label="Exact value type"><option value="text">Text</option><option value="number">Number</option><option value="boolean">Boolean</option><option value="null">Null</option></select></label>
+          <label>Equals<input id="metaValue" placeholder="Past chat" aria-label="Exact metadata value"></label>
+          <button id="applyExact" class="chrome-button">APPLY EXACT</button><button id="clearExact" class="quiet-button">CLEAR EXACT</button>
+        </div>
+        <p>Relative to message.metadata. [*] checks array elements. Text is case-sensitive; null is different from a missing field. Combines with the search and sidebar filters.</p>
+        <div class="saved-query-row">
+          <input id="queryName" aria-label="Saved search name" placeholder="Name this investigation…" maxlength="100">
+          <button id="saveQuery" class="quiet-button">SAVE VIEW</button>
+          <select id="savedQueries" aria-label="Saved searches"></select>
+          <button id="openQuery" class="quiet-button">OPEN VIEW</button>
+        </div>
+        <p>Saved views stay in this browser on this computer; source files are never changed. These controls filter the ledger, not the raw JSON viewer.</p>
+      </details>
+
+      <section id="ledgerView" class="view-panel active" aria-label="Message ledger">
+        <div class="table-wrap">
+          <table class="ledger-table">
+            <thead>
+              <tr>
+                <th class="marker-col">MARK</th>
+                <th class="time-col">TIME</th>
+                <th class="role-col">ROLE</th>
+                <th>CONTENT / CONVERSATION</th>
+                <th class="model-col">MODEL</th>
+                <th class="lineage-col">LINEAGE</th>
+                <th class="review-col">REVIEW</th>
+              </tr>
+            </thead>
+            <tbody id="messageRows"></tbody>
+          </table>
+          <div id="emptyState" class="empty-state" hidden>
+            <div class="empty-orbit"><i></i><i></i><i></i></div>
+            <h2>No indexed records</h2>
+            <p>Choose your own JSON export, or explore the optional synthetic demo.</p>
+            <button class="chrome-button" id="emptyImportButton">LOAD SOURCE</button>
+          </div>
+        </div>
+        <footer class="pager">
+          <button id="prevPage" aria-label="Previous page">←</button>
+          <form id="ledgerPageJump" class="page-jump"><label>PAGE <input id="currentPage" type="text" inputmode="numeric" value="1" aria-label="Ledger page number"></label><span>/ <b id="totalPages">1</b></span><button type="submit">GO</button></form>
+          <button id="nextPage" aria-label="Next page">→</button>
+          <label>ROWS
+            <select id="pageSize"><option>50</option><option selected>100</option><option>250</option></select>
+          </label>
+        </footer>
+      </section>
+
+      <section id="lineageView" class="view-panel lineage-view" aria-label="Conversation lineage graph">
+        <div id="constellationApp"></div>
+        <div class="lineage-toolbar">
+          <div><span class="eyebrow">ACTIVE CONVERSATION</span><strong id="lineageTitle">Select a ledger row</strong></div>
+          <div class="lineage-legend">
+            <span class="user-dot">USER</span><span class="assistant-dot">ASSISTANT</span><span class="system-dot">SYSTEM / TOOL</span><span class="marked-dot">MARKED</span>
+            <span class="edge-key active-edge-key">SELECTED EXPORT</span><span class="edge-key other-edge-key">OTHER EXPORT</span><span class="edge-key metadata-edge-key">METADATA PARENT</span>
+          </div>
+          <button class="quiet-button" id="resetGraphButton">CENTER GRAPH</button>
+        </div>
+        <div class="graph-stage" id="graphStage">
+          <svg id="lineageGraph" viewBox="0 0 1400 760" role="img" aria-label="Parent and child lineage graph">
+            <g id="graphViewport"><g id="graphEdges"></g><g id="graphNodes"></g></g>
+          </svg>
+          <div id="graphEmpty" class="graph-empty"><span>↳</span><p>Open any record, then descend into its lineage.</p></div>
+          <div class="graph-controls"><button id="zoomIn" aria-label="Zoom in">＋</button><button id="zoomOut" aria-label="Zoom out">−</button></div>
+        </div>
+      </section>
+
+      <section id="jsonView" class="view-panel json-view" aria-label="Exact JSON source viewer">
+        <div class="json-toolbar">
+          <div>
+            <span class="eyebrow">EXACT SERIALIZED SOURCE</span>
+            <strong id="jsonFileName">Select any source file</strong>
+            <small id="jsonFilePath">Every byte remains in the original archive.</small>
+          </div>
+          <div class="json-status-strip">
+            <span><small>STATUS</small><b id="jsonSourceStatus">—</b></span>
+            <span><small>WINDOW</small><b id="jsonByteRange">—</b></span>
+            <span><small>MATCH</small><b id="jsonMatchStatus">—</b></span>
+          </div>
+        </div>
+        <div class="json-reader-shell">
+          <pre id="jsonRawViewer" class="json-raw-viewer">Choose a file in SOURCES. Files marked “skipped” are still readable here; skipped only means they were not shaped like conversation records.</pre>
+        </div>
+        <footer class="json-controls">
+          <button id="jsonPrevChunk" aria-label="Previous JSON chunk">← CHUNK</button>
+          <button id="jsonNextChunk" aria-label="Next JSON chunk">CHUNK →</button>
+          <span class="json-control-divider"></span>
+          <button id="jsonPrevMatch" aria-label="Previous JSON search match">← MATCH</button>
+          <button id="jsonNextMatch" aria-label="Next JSON search match">MATCH →</button>
+          <small id="jsonScopeNote">Select a source, then search above. Use <code>meta:hidden</code> in Ledger to search message metadata only.</small>
+        </footer>
+      </section>
+    </main>
+
+    <aside id="detailPanel" class="detail-panel" aria-label="Record details" aria-hidden="true">
+      <div class="detail-depth depth-one">
+        <header class="detail-head">
+          <div><span class="eyebrow" id="detailKicker">RECORD</span><h2 id="detailTitle">—</h2></div>
+          <button id="closeDetail" class="icon-button" aria-label="Close details">×</button>
+        </header>
+        <div class="identity-strip" id="identityStrip"></div>
+        <nav class="detail-tabs" aria-label="Record detail layers">
+          <button class="active" data-tab="message">MESSAGE</button>
+          <button data-tab="metadata">METADATA</button>
+          <button data-tab="parents">PARENT CHECK</button>
+          <button data-tab="versions">COMPARE</button>
+          <button data-tab="markers">MARKERS <b id="markerTabCount">0</b></button>
+          <button data-tab="raw">RAW</button>
+        </nav>
+        <div class="detail-body">
+          <section id="tab-message" class="tab-pane active">
+            <div id="messageContent" class="message-content"></div>
+            <div class="field-grid" id="messageFields"></div>
+          </section>
+          <section id="tab-metadata" class="tab-pane"><div id="metadataTree" class="metadata-tree"></div></section>
+          <section id="tab-parents" class="tab-pane"><div id="parentChecks"></div></section>
+          <section id="tab-versions" class="tab-pane"><div id="parentVersions"></div></section>
+          <section id="tab-markers" class="tab-pane"><div id="markerList" class="marker-list"></div></section>
+          <section id="tab-raw" class="tab-pane"><pre id="rawRecord" class="raw-record"></pre></section>
+        </div>
+        <section class="review-dock">
+          <div class="review-head"><span class="eyebrow">YOUR REVIEW LAYER</span><button id="saveAnnotation" class="quiet-button">SAVE</button></div>
+          <div class="review-controls">
+            <select id="reviewState" aria-label="Review state"><option value="unreviewed">Unreviewed</option><option value="reviewing">Reviewing</option><option value="confirmed">Confirmed</option><option value="dismissed">Dismissed</option></select>
+            <input id="reviewTags" placeholder="tags, comma separated" aria-label="Tags">
+          </div>
+          <textarea id="reviewNote" rows="3" placeholder="Add your interpretation without changing the source record…"></textarea>
+        </section>
+        <button id="descendLineage" class="descend-button"><span>DESCEND INTO LINEAGE</span><b>↳</b></button>
+      </div>
+    </aside>
+
+    <dialog id="importDialog" class="import-dialog">
+      <form method="dialog" class="dialog-shell">
+        <header><div><span class="eyebrow">SOURCE INTAKE</span><h2>Load without surrendering the evidence</h2></div><button value="cancel" class="icon-button" aria-label="Close">×</button></header>
+        <div class="intake-grid">
+          <div class="intake-card path-card featured">
+            <span class="card-index">01</span><label><strong>YOUR JSON EXPORT</strong><small>Select one file. Copied into local Traceglass storage, never sent to GitHub.</small><input id="importFile" type="file" accept=".json,.jsonl,.ndjson,.gz" aria-label="Choose your JSON export"></label>
+            <button type="button" id="importFileButton">LOAD ↗</button>
+          </div>
+          <div class="intake-card path-card">
+            <span class="card-index">02</span><label><strong>LOCAL EXPORT PATH</strong><small>File or directory; no extra source copy. Best for very large archives.</small><input id="importPath" placeholder="Absolute path to your export file or directory" aria-label="Local export path"></label>
+            <button type="button" id="importPathButton">INDEX ↗</button>
+          </div>
+          <button type="button" id="importSampleButton" class="intake-card">
+            <span class="card-index">03</span><div><strong>OPTIONAL SYNTHETIC DEMO</strong><small>Invented records · branches, tools, and hidden metadata</small></div><b>LOAD ↗</b>
+          </button>
+        </div>
+        <div id="importProgress" class="import-progress" hidden>
+          <div><span id="importLabel">Indexing</span><b id="importPercent">0%</b></div>
+          <progress id="importProgressBar" max="100" value="0"></progress>
+          <small id="importDetail"></small>
+        </div>
+        <footer><span>Supported: conversations JSON · NDJSON · gzip</span><span>127.0.0.1 · no remote transfer</span></footer>
+      </form>
+    </dialog>
+
+    <dialog id="investigationDialog" class="investigation-dialog" aria-labelledby="investigationHeading">
+      <header class="investigation-head">
+        <div><small>TRACEGLASS / INVESTIGATION LAYER</small><h2 id="investigationHeading">Keep the thread.</h2></div>
+        <button id="closeInvestigation" class="quiet-button" aria-label="Close investigation">CLOSE ×</button>
+      </header>
+      <div class="investigation-layout">
+        <aside class="investigation-rail" aria-label="Investigations">
+          <button id="newInvestigation" class="chrome-button">＋ NEW INVESTIGATION</button>
+          <div id="investigationList"></div>
+          <button id="moreInvestigations" class="quiet-button" hidden>OLDER INVESTIGATIONS</button>
+          <div class="connection-state"><i></i><strong>LOCAL WORKSPACE</strong><p>Notebook and evidence tools are live.<br>Model, voice and external inference services are not connected. Nothing here is sent to a provider.</p></div>
+        </aside>
+        <section class="investigation-main">
+          <form id="createInvestigation" class="investigation-create">
+            <span class="section-label">01 / THE QUESTION</span>
+            <h3>A place for the unfinished idea.</h3>
+            <p>Keep observations, guesses and corrections separate. Follow a record, leave a checkpoint, and come back without losing the question.</p>
+            <label>INVESTIGATION NAME<input id="investigationName" maxlength="160" required placeholder="What are we looking into?"></label>
+            <label>ORIGINAL QUESTION<textarea id="investigationQuestion" maxlength="12000" required rows="4" placeholder="What do you want to understand—and what would help you check it?"></textarea></label>
+            <button class="chrome-button" type="submit">START LOCALLY ↗</button>
+            <small>This saves your question. It does not generate an AI answer.</small>
+          </form>
+          <div id="investigationWorkspace" hidden>
+            <div class="investigation-anchor"><small>ORIGINAL QUESTION · PRESERVED</small><h3 id="activeInvestigationTitle"></h3><p id="activeInvestigationQuestion"></p></div>
+            <div class="investigation-evidence">
+              <small>SELECTED RECORD</small><div id="investigationSelection">Open a record in the ledger to attach evidence.</div>
+              <div class="investigation-actions">
+                <button data-case-action="evidence">PIN RECORD</button><button data-case-action="checkpoint">LEAVE CHECKPOINT</button>
+                <button data-case-tool="inspect_record">INSPECT</button><button data-case-tool="trace_parents">TRACE PARENTS</button><button data-case-tool="compare_exports">COMPARE COPIES</button>
+              </div>
+            </div>
+            <div id="investigationJournal" class="investigation-journal" role="region" aria-label="Investigation notebook" tabindex="0">
+              <button id="olderInvestigationEntries" class="quiet-button" hidden>LOAD EARLIER ENTRIES</button><div id="investigationEntries"></div>
+            </div>
+            <form id="investigationComposer" class="investigation-composer">
+              <div><label>ENTRY TYPE <select id="investigationKind"><option value="note">Note</option><option value="question">Question</option><option value="hypothesis">Hypothesis · unverified</option><option value="correction">Correction</option><option value="finding">Finding · your assessment</option><option value="next_step">Next step</option></select></label><span id="revisionStatus"></span><button type="button" id="cancelRevision" class="quiet-button" hidden>CANCEL REVISION</button></div>
+              <label class="sr-only" for="investigationText">Notebook entry</label><textarea id="investigationText" rows="2" maxlength="20000" required placeholder="Keep the thought. No need to make it a conclusion yet."></textarea>
+              <footer><small>Saved locally • revisions preserve the previous wording</small><button class="chrome-button" type="submit">SAVE ENTRY ↗</button></footer>
+            </form>
+          </div>
+          <div id="investigationError" role="alert" hidden></div>
+        </section>
+      </div>
+    </dialog>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </div>
+  <script src="/app.js" defer></script>
+  <script src="/constellation.js" defer></script>
+  <script src="/investigations.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+# Private local state: never publish an indexed corpus or imported files.
+/data/
+*.sqlite
+*.sqlite3
+*.sqlite3-*
+*.sqlite-*
+*.db
+*.db-*
+*.log
+.env
+.env.*
+__pycache__/
+*.py[cod]
+.venv/
+.DS_Store
+# Export formats are private by default; only the invented demo is allowlisted.
+*.json
+*.jsonl
+*.ndjson
+*.gz
+*.zip
+!/sample-data/demo.json
