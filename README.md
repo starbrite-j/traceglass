@@ -50,8 +50,11 @@ Personal import is the main workflow. No real conversation exports are included.
   parent mismatch demonstrate navigation. They are not historical evidence.
 
 Extract ZIP exports first. JSON arrays, whitespace-separated JSON/NDJSON/JSONL, and
-gzip are accepted. Conversation mappings and the supported chronological-record
-shape receive ledger/graph indexing. Other JSON can be available in the raw viewer
+gzip are accepted, including UTF-8 files with a byte-order mark. Directory imports
+discover `.json`, `.jsonl`, `.ndjson`, and their `.gz` variants without regard to
+filename case. Conversation mappings and the supported chronological-record shape
+receive ledger/graph indexing, including records in `conversations`, `items`, or
+`data` list wrappers. Other JSON can be available in the raw viewer
 without conversation indexing; arbitrary agent-log formats are not automatically
 understood. Images, audio, and attachments are not decoded.
 
@@ -108,8 +111,14 @@ The synthetic demo is the only intended public sample data.
 - Import is incremental across top-level JSON values, **not constant-memory**:
   the largest individual conversation/value must fit in memory. Indexes consume
   disk space; there is no promise that every multi-gigabyte export fits every PC.
-- Duplicate JSON keys, invalid UTF-8, conflicting mapping-key/node identities, and
-  repeated indexed identities within one file fail rather than select a winner.
+- Duplicate JSON keys, invalid UTF-8, non-finite numbers (`NaN`, `Infinity`, or
+  floating-point overflow), conflicting mapping-key/node identities, and repeated
+  indexed identities within one file fail rather than select a winner. Recognized
+  records with unsupported object-field types or non-object mapping nodes fail
+  with a field-specific error. Missing and null node IDs stay distinct in raw
+  record detail; the mapping key supplies the index identity in those cases.
+  Unrepresentable timestamp values remain in raw detail and are excluded from
+  numeric time fields.
   The failing file rolls back; earlier files in a multi-file import may remain.
   If that happens, their reconciliation may be incomplete. Start a fresh index
   after correcting the input instead of treating partial markers as final.
@@ -126,6 +135,23 @@ The synthetic demo is the only intended public sample data.
 
 Back up source archives independently. To start an empty workspace, stop the server
 and move `data/` to a safe backup location; restarting creates a new local database.
+
+## Measured large-data validation
+
+A real 2.00 GiB synthetic JSON import with 165,344 records completed in 87.1 seconds
+with approximately 234 MiB Python process peak RSS on the measured Mac. Search,
+pagination, metadata filters, raw-source access, and graph navigation were checked
+through the actual HTTP API. Large individual conversations use more memory; a
+separate 143 MB conversation test is included in the report.
+
+See [the validation report](docs/LARGE_DATA_VALIDATION.md) for exact inputs,
+acceptance budgets, machine details, measurements, retained failed runs, and
+commands to reproduce the tests. These results describe the tested workloads,
+not every export up to the file picker's 20 GiB limit.
+
+During an import, progress remains active through reconciliation. Statistics show
+an explicitly labeled snapshot of the prior index and refresh when the import
+finishes.
 
 ## Development
 

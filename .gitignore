@@ -13,10 +13,12 @@ __pycache__/
 *.py[cod]
 .venv/
 .DS_Store
-# Export formats are private by default; only the invented demo is allowlisted.
+# Export formats are private by default. Only the invented demo and explicitly
+# reviewed synthetic benchmark measurements are allowlisted.
 *.json
 *.jsonl
 *.ndjson
 *.gz
 *.zip
 !/sample-data/demo.json
+!/docs/validation/*.json

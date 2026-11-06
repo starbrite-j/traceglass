@@ -1,0 +1,640 @@
+{
+  "started_utc": "2026-11-06T19:38:29.696683Z",
+  "status": "failed",
+  "platform": "macOS-15.7.7-arm64-arm-64bit-Mach-O",
+  "python": "3.14.7",
+  "sqlite": "3.53.4",
+  "cpu": "arm",
+  "app_sha256": "5542e421a35cf5c29189c00edc50945ce581c078517d4c0674b205a754e4fec4",
+  "benchmark_sha256": "708b8837c6bf06420ec02016c0e2525bbb1b9cfebe94d5591649d74fca2211a1",
+  "target_mib": 2048,
+  "scope": "Local synthetic text-heavy workload, not real private exports or all hardware/schema combinations.",
+  "manifest": {
+    "bytes": 2147490402,
+    "sha256": "72db37344a05c740a34f2799fdea369d89dea93ee780e80a5d89ef65efeb74dd",
+    "records": 165344,
+    "conversations": 10334,
+    "edges": 310020,
+    "samples": [
+      {
+        "conversation_id": "bench-c00000000",
+        "node_id": "bench-c00000000-n00",
+        "marker": "benchmarker000000000000",
+        "raw_sha256": "2c0da2ce8cd4f3b62a4cd8e0a212cf745c4b15e0902d4b57e211288cb0516c7a",
+        "ordinal": 0
+      },
+      {
+        "conversation_id": "bench-c00000625",
+        "node_id": "bench-c00000625-n00",
+        "marker": "benchmarker000000010000",
+        "raw_sha256": "f4e0434dd5d889cce26bacd1ca6c81b70d6eaaee1129949d62ccc690264ef6eb",
+        "ordinal": 10000
+      },
+      {
+        "conversation_id": "bench-c00001250",
+        "node_id": "bench-c00001250-n00",
+        "marker": "benchmarker000000020000",
+        "raw_sha256": "e425a98a200cd7c685817eff4de1197c4d0bd6f0b297b099758629c4d97feea9",
+        "ordinal": 20000
+      },
+      {
+        "conversation_id": "bench-c00001875",
+        "node_id": "bench-c00001875-n00",
+        "marker": "benchmarker000000030000",
+        "raw_sha256": "f28ca452a5cae84139ac2477d4ef009f8173e8884bebae3546afce22e9d07d92",
+        "ordinal": 30000
+      },
+      {
+        "conversation_id": "bench-c00002500",
+        "node_id": "bench-c00002500-n00",
+        "marker": "benchmarker000000040000",
+        "raw_sha256": "34349d5148e1a4ededc0cb5854c62001b1ee62680f44447205b88769e0d2a48c",
+        "ordinal": 40000
+      },
+      {
+        "conversation_id": "bench-c00003125",
+        "node_id": "bench-c00003125-n00",
+        "marker": "benchmarker000000050000",
+        "raw_sha256": "c20fbcd29e326a451e33c71d5966ca5bd66cc5dcfc97d6530be4e40736ee83ee",
+        "ordinal": 50000
+      },
+      {
+        "conversation_id": "bench-c00003750",
+        "node_id": "bench-c00003750-n00",
+        "marker": "benchmarker000000060000",
+        "raw_sha256": "64fcb187be3c2129b31f8767b023177525d7c12ee7ebc56dc82a2370b783f051",
+        "ordinal": 60000
+      },
+      {
+        "conversation_id": "bench-c00004375",
+        "node_id": "bench-c00004375-n00",
+        "marker": "benchmarker000000070000",
+        "raw_sha256": "af78474b3ec7aeed630bf36e00a842cf51bb69cf5ad7ba3322e91333cd7222b2",
+        "ordinal": 70000
+      },
+      {
+        "conversation_id": "bench-c00005000",
+        "node_id": "bench-c00005000-n00",
+        "marker": "benchmarker000000080000",
+        "raw_sha256": "aaa83d2ede68ea210566dd3b57c2b16079d118b7e82403bed7379561532c50ab",
+        "ordinal": 80000
+      },
+      {
+        "conversation_id": "bench-c00005625",
+        "node_id": "bench-c00005625-n00",
+        "marker": "benchmarker000000090000",
+        "raw_sha256": "94fb7223630c48c62c2ae7e576360e42c664ee4441462f0729fe2ce7df094c15",
+        "ordinal": 90000
+      },
+      {
+        "conversation_id": "bench-c00006250",
+        "node_id": "bench-c00006250-n00",
+        "marker": "benchmarker000000100000",
+        "raw_sha256": "e18555994dc4875afb5bfff7fdc2d200390a1a42205bd5c96619ed3f5eca6ad7",
+        "ordinal": 100000
+      },
+      {
+        "conversation_id": "bench-c00006875",
+        "node_id": "bench-c00006875-n00",
+        "marker": "benchmarker000000110000",
+        "raw_sha256": "313faeaa78df5ecb502cea8173de049b3703dcf5347225a498b1af3beef5b055",
+        "ordinal": 110000
+      },
+      {
+        "conversation_id": "bench-c00007500",
+        "node_id": "bench-c00007500-n00",
+        "marker": "benchmarker000000120000",
+        "raw_sha256": "8d7fdc641836249edbf4092a7df421e10113f9131b8eb14fc4ce48e4c929f50c",
+        "ordinal": 120000
+      },
+      {
+        "conversation_id": "bench-c00008125",
+        "node_id": "bench-c00008125-n00",
+        "marker": "benchmarker000000130000",
+        "raw_sha256": "592f7dd50616b914cd766ce2e7ec3ec9153e07fb888a45409a6d38e7a9a78507",
+        "ordinal": 130000
+      },
+      {
+        "conversation_id": "bench-c00008750",
+        "node_id": "bench-c00008750-n00",
+        "marker": "benchmarker000000140000",
+        "raw_sha256": "3f363dfc687bca7820d4194d75857f32b7f1d897acc558c1f980ac135df0b85f",
+        "ordinal": 140000
+      },
+      {
+        "conversation_id": "bench-c00009375",
+        "node_id": "bench-c00009375-n00",
+        "marker": "benchmarker000000150000",
+        "raw_sha256": "66eed7c43886b91b6ab79293c72c211a209471f07af07a7122217da163360ad6",
+        "ordinal": 150000
+      },
+      {
+        "conversation_id": "bench-c00010000",
+        "node_id": "bench-c00010000-n00",
+        "marker": "benchmarker000000160000",
+        "raw_sha256": "996d25950b2b67cc2a96e8dd766a63746b39b1b27101b782df3817ee53b50cbf",
+        "ordinal": 160000
+      },
+      {
+        "conversation_id": "bench-c00010333",
+        "node_id": "bench-c00010333-n15",
+        "marker": "benchmarker000000165343",
+        "raw_sha256": "a1f740e0d4345db978ae1ca4a8c52555393017bea66651485652260142266f88",
+        "ordinal": 165343
+      }
+    ],
+    "seed": 20261106,
+    "nodes_per_conversation": 16,
+    "generation_seconds": 19.951899125007913,
+    "shape": "16-node conversations; varied 96–65536 character text; multilingual vocabulary; unique IDs/markers"
+  },
+  "import_seconds": 91.73622008401435,
+  "import_peak_rss_bytes": 234553344,
+  "import_result": {
+    "dataset_id": 1,
+    "files": 1,
+    "rows": 165344
+  },
+  "phases": [
+    {
+      "phase": "import_file",
+      "seconds": 72.98106454103254,
+      "peak_rss_bytes": 234553344
+    },
+    {
+      "phase": "analyze_dataset",
+      "seconds": 10.749469749978743,
+      "peak_rss_bytes": 234553344
+    },
+    {
+      "phase": "analyze_cross_dataset_conflicts",
+      "seconds": 8.004113542032428,
+      "peak_rss_bytes": 234553344
+    }
+  ],
+  "live_import_probes": [
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 0,
+        "total": 1,
+        "detail": "invented-conversations.json: 14,000 records",
+        "started_at": "2026-11-06T19:38:49.673136Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 189251584,
+      "database_bytes": 192512,
+      "wal_bytes": 666430632,
+      "health_seconds": 0.0010674999793991446,
+      "status_seconds": 0.0010047920513898134,
+      "stats_seconds": 0.0029192090732976794
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 0,
+        "total": 1,
+        "detail": "invented-conversations.json: 30,000 records",
+        "started_at": "2026-11-06T19:38:49.673136Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 206127104,
+      "database_bytes": 192512,
+      "wal_bytes": 1325082672,
+      "health_seconds": 0.0010625829454511404,
+      "status_seconds": 0.0006262079114094377,
+      "stats_seconds": 0.0016676660161465406
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 0,
+        "total": 1,
+        "detail": "invented-conversations.json: 44,000 records",
+        "started_at": "2026-11-06T19:38:49.673136Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 207634432,
+      "database_bytes": 192512,
+      "wal_bytes": 1955364392,
+      "health_seconds": 0.0015061249723657966,
+      "status_seconds": 0.0007426249794661999,
+      "stats_seconds": 0.002066874993033707
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 0,
+        "total": 1,
+        "detail": "invented-conversations.json: 58,000 records",
+        "started_at": "2026-11-06T19:38:49.673136Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 218120192,
+      "database_bytes": 192512,
+      "wal_bytes": 2542670392,
+      "health_seconds": 0.001185750006698072,
+      "status_seconds": 0.0008978749392554164,
+      "stats_seconds": 0.0014776249881833792
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 0,
+        "total": 1,
+        "detail": "invented-conversations.json: 74,000 records",
+        "started_at": "2026-11-06T19:38:49.673136Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 219643904,
+      "database_bytes": 192512,
+      "wal_bytes": 3186185552,
+      "health_seconds": 0.0015254999743774533,
+      "status_seconds": 0.0005617919377982616,
+      "stats_seconds": 0.0012052500387653708
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 0,
+        "total": 1,
+        "detail": "invented-conversations.json: 88,000 records",
+        "started_at": "2026-11-06T19:38:49.673136Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 221085696,
+      "database_bytes": 192512,
+      "wal_bytes": 3792159272,
+      "health_seconds": 0.001405833987519145,
+      "status_seconds": 0.0006145419320091605,
+      "stats_seconds": 0.0013966249534860253
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 0,
+        "total": 1,
+        "detail": "invented-conversations.json: 102,000 records",
+        "started_at": "2026-11-06T19:38:49.673136Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 226607104,
+      "database_bytes": 192512,
+      "wal_bytes": 4409619552,
+      "health_seconds": 0.0011817080667242408,
+      "status_seconds": 0.0006039589643478394,
+      "stats_seconds": 0.0020573330111801624
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 0,
+        "total": 1,
+        "detail": "invented-conversations.json: 116,000 records",
+        "started_at": "2026-11-06T19:38:49.673136Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 227835904,
+      "database_bytes": 192512,
+      "wal_bytes": 5005989552,
+      "health_seconds": 0.0010289159836247563,
+      "status_seconds": 0.0006954160053282976,
+      "stats_seconds": 0.0009043329628184438
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 0,
+        "total": 1,
+        "detail": "invented-conversations.json: 130,000 records",
+        "started_at": "2026-11-06T19:38:49.673136Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 229064704,
+      "database_bytes": 192512,
+      "wal_bytes": 5604328912,
+      "health_seconds": 0.001236791955307126,
+      "status_seconds": 0.0006557920714840293,
+      "stats_seconds": 0.0019027499947696924
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 0,
+        "total": 1,
+        "detail": "invented-conversations.json: 140,000 records",
+        "started_at": "2026-11-06T19:38:49.673136Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 229965824,
+      "database_bytes": 192512,
+      "wal_bytes": 6040352632,
+      "health_seconds": 0.001121833105571568,
+      "status_seconds": 0.00047166598960757256,
+      "stats_seconds": 0.0010867919772863388
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 0,
+        "total": 1,
+        "detail": "invented-conversations.json: 154,000 records",
+        "started_at": "2026-11-06T19:38:49.673136Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 231096320,
+      "database_bytes": 192512,
+      "wal_bytes": 6605093392,
+      "health_seconds": 0.0008300829213112593,
+      "status_seconds": 0.0007486250251531601,
+      "stats_seconds": 0.000886125024408102
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 0,
+        "total": 1,
+        "detail": "invented-conversations.json: 164,000 records",
+        "started_at": "2026-11-06T19:38:49.673136Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 231981056,
+      "database_bytes": 192512,
+      "wal_bytes": 7054976792,
+      "health_seconds": 0.0013522910885512829,
+      "status_seconds": 0.0004584590205922723,
+      "stats_seconds": 0.0009011250222101808
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 0,
+        "total": 1,
+        "detail": "invented-conversations.json: 164,000 records",
+        "started_at": "2026-11-06T19:38:49.673136Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 232210432,
+      "database_bytes": 192512,
+      "wal_bytes": 7054985032,
+      "health_seconds": 0.0012679999927058816,
+      "status_seconds": 0.002343124942854047,
+      "stats_error": "TimeoutError: timed out"
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 1,
+        "total": 1,
+        "detail": "Reconciling lineage and structural markers across the complete dataset",
+        "started_at": "2026-11-06T19:38:49.673136Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 234553344,
+      "database_bytes": 7013965824,
+      "wal_bytes": 0,
+      "health_seconds": 0.0011517909588292241,
+      "status_seconds": 0.0005142500158399343,
+      "stats_seconds": 2.751346875098534
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 1,
+        "total": 1,
+        "detail": "Reconciling lineage and structural markers across the complete dataset",
+        "started_at": "2026-11-06T19:38:49.673136Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 234553344,
+      "database_bytes": 7013965824,
+      "wal_bytes": 0,
+      "health_seconds": 0.0010427499655634165,
+      "status_seconds": 0.0007299999706447124,
+      "stats_seconds": 2.70665695797652
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 1,
+        "total": 1,
+        "detail": "Reconciling lineage and structural markers across the complete dataset",
+        "started_at": "2026-11-06T19:38:49.673136Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 234553344,
+      "database_bytes": 7013965824,
+      "wal_bytes": 0,
+      "health_seconds": 0.0007744169561192393,
+      "status_seconds": 0.00040662498213350773,
+      "stats_seconds": 0.001174959004856646
+    }
+  ],
+  "index_counts": {
+    "sources": 1,
+    "conversations": 10334,
+    "messages": 165344,
+    "messages_fts": 165344,
+    "edges": 310020
+  },
+  "sampled_raw_records_verified": 18,
+  "source_unchanged": true,
+  "sqlite_quick_check": "ok",
+  "fts_integrity_check": "ok",
+  "checks": [
+    "stats",
+    "ledger_first_page",
+    "ledger_last_page",
+    "text_search_first",
+    "record_detail_first",
+    "text_search_last",
+    "record_detail_last",
+    "id_search",
+    "exact_metadata_filter",
+    "atlas",
+    "constellation",
+    "parent_trace",
+    "raw_window",
+    "raw_search_full_file"
+  ],
+  "http_timings": {
+    "stats": {
+      "seconds": [
+        0.0014875830383971334,
+        0.0013950830325484276,
+        0.0009964159689843655
+      ],
+      "median_seconds": 0.0013950830325484276,
+      "max_seconds": 0.0014875830383971334,
+      "max_response_bytes": 1230
+    },
+    "ledger_first_page": {
+      "seconds": [
+        0.05431433406192809,
+        0.05416675005108118,
+        0.05325825000181794
+      ],
+      "median_seconds": 0.05416675005108118,
+      "max_seconds": 0.05431433406192809,
+      "max_response_bytes": 115190
+    },
+    "ledger_last_page": {
+      "seconds": [
+        0.05341333302203566,
+        0.05258137499913573,
+        0.053832666017115116
+      ],
+      "median_seconds": 0.05341333302203566,
+      "max_seconds": 0.053832666017115116,
+      "max_response_bytes": 51413
+    },
+    "text_search_first": {
+      "seconds": [
+        0.0019137919880449772,
+        0.001181792002171278,
+        0.0011512920027598739
+      ],
+      "median_seconds": 0.001181792002171278,
+      "max_seconds": 0.0019137919880449772,
+      "max_response_bytes": 1218
+    },
+    "record_detail_first": {
+      "seconds": [
+        0.0011831249576061964,
+        0.0010394169948995113,
+        0.0009289999725297093
+      ],
+      "median_seconds": 0.0010394169948995113,
+      "max_seconds": 0.0011831249576061964,
+      "max_response_bytes": 3246
+    },
+    "text_search_last": {
+      "seconds": [
+        0.004223374999128282,
+        0.00402270897757262,
+        0.004007084062322974
+      ],
+      "median_seconds": 0.00402270897757262,
+      "max_seconds": 0.004223374999128282,
+      "max_response_bytes": 1499
+    },
+    "record_detail_last": {
+      "seconds": [
+        0.0022418330190703273,
+        0.002121291938237846,
+        0.0020972079364582896
+      ],
+      "median_seconds": 0.002121291938237846,
+      "max_seconds": 0.0022418330190703273,
+      "max_response_bytes": 140853
+    },
+    "id_search": {
+      "seconds": [
+        0.27965754200704396,
+        0.2794789579929784,
+        0.27460383297875524
+      ],
+      "median_seconds": 0.2794789579929784,
+      "max_seconds": 0.27965754200704396,
+      "max_response_bytes": 1173
+    },
+    "exact_metadata_filter": {
+      "seconds": [
+        1.145495375036262,
+        1.1479066659230739,
+        1.190548708080314
+      ],
+      "median_seconds": 1.1479066659230739,
+      "max_seconds": 1.190548708080314,
+      "max_response_bytes": 88420
+    },
+    "atlas": {
+      "seconds": [
+        0.04689479200169444,
+        0.045598958036862314,
+        0.0451980410143733
+      ],
+      "median_seconds": 0.045598958036862314,
+      "max_seconds": 0.04689479200169444,
+      "max_response_bytes": 10463
+    },
+    "constellation": {
+      "seconds": [
+        0.0018605840159580112,
+        0.0017585830064490438,
+        0.001484749955125153
+      ],
+      "median_seconds": 0.0017585830064490438,
+      "max_seconds": 0.0018605840159580112,
+      "max_response_bytes": 12193
+    },
+    "parent_trace": {
+      "seconds": [
+        0.0010744580067694187,
+        0.0011782500660046935,
+        0.0012507080100476742
+      ],
+      "median_seconds": 0.0011782500660046935,
+      "max_seconds": 0.0012507080100476742,
+      "max_response_bytes": 3207
+    },
+    "raw_window": {
+      "seconds": [
+        0.0007255410309880972,
+        0.0007258330006152391,
+        0.0006892499513924122
+      ],
+      "median_seconds": 0.0007255410309880972,
+      "max_seconds": 0.0007258330006152391,
+      "max_response_bytes": 4875
+    },
+    "raw_search_full_file": {
+      "seconds": [
+        1.5053955420153216,
+        0.0017356249736621976,
+        0.0013853339478373528
+      ],
+      "median_seconds": 0.0017356249736621976,
+      "max_seconds": 1.5053955420153216,
+      "max_response_bytes": 99338
+    }
+  },
+  "source_id": 1,
+  "reopen_check": "ok",
+  "database_bytes": 7013965824,
+  "peak_rss_bytes": 244367360,
+  "error": "An HTTP responsiveness probe failed during import; inspect live_import_probes",
+  "finished_utc": "2026-11-06T19:40:49.167896Z"
+}

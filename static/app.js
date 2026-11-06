@@ -74,6 +74,7 @@ async function loadStats() {
   const fileScope=activeDataset&&activeDataset.file_count!==activeDataset.source_count?` · ${activeDataset.file_count-activeDataset.source_count} raw-only file${activeDataset.file_count-activeDataset.source_count===1?'':'s'}`:'';
   const crossScope=t.events_seen_elsewhere?` · ${t.events_seen_elsewhere.toLocaleString()} also retained elsewhere${t.conflicting_events_elsewhere?` · ${t.conflicting_events_elsewhere.toLocaleString()} text conflicts`:''}${t.variant_events_elsewhere?` · ${t.variant_events_elsewhere.toLocaleString()} non-text variants`:''}${t.omitted_events_elsewhere?` · ${t.omitted_events_elsewhere.toLocaleString()} availability variants`:''}`:'';
   $("#datasetScope").textContent=(t.duplicate_event_copies?`${t.messages.toLocaleString()} records · ${t.unique_events.toLocaleString()} unique · ${t.duplicate_event_copies.toLocaleString()} retained copies`:`${t.messages.toLocaleString()} records · no repeated nodes`)+fileScope+crossScope;
+  if(data.summary_status==='before_current_import')$('#datasetScope').textContent+=' · prior index while import runs';
   $("#sourceCount").textContent=data.sources.length;
   $("#anyMarkerCount").textContent=compactNumber(t.anomalies);
   $("#sourceList").innerHTML=data.sources.map(s=>{const displayStatus=s.status==='skipped'?'raw only':s.status;return `<button class="source-card ${String(s.id)===state.sourceId?'active':''}" data-source="${s.id}" title="${escapeHtml(s.path)}"><strong>${escapeHtml(fileName(s.path))}</strong><small>${compactNumber(s.row_count)} ledger rows · ${fmtBytes(s.size_bytes)}</small><span class="source-status ${escapeHtml(s.status)}">${escapeHtml(displayStatus)}</span>${s.error?`<small class="source-error">${escapeHtml(s.error.replace('No supported conversation or chronological records found','Available in JSON view; no conversation-shaped records found'))}</small>`:''}${s.duplicate_copies?`<small class="copy-note">${s.duplicate_copies} identical source cop${s.duplicate_copies===1?'y':'ies'} retained elsewhere</small>`:''}</button>`}).join("") || `<div class="source-card"><strong>NO SOURCE LOADED</strong><small>Use LOAD SOURCE to begin</small></div>`;
@@ -82,6 +83,7 @@ async function loadStats() {
   $(".all-markers").classList.toggle("active",state.anomaly==="any");
   bindDynamicFilters();
   updateImportProgress(data.job);
+  if(data.job.state==='running'&&!jobTimer&&!jobPollActive)queueJobPoll();
 }
 
 function bindDynamicFilters() {
@@ -309,9 +311,25 @@ async function importSelectedFile() {
   finally {button.disabled=false;button.textContent='LOAD ↗'}
 }
 
-let jobTimer;
-async function pollJob(){clearTimeout(jobTimer);try{const p=state.datasetId?`?dataset_id=${encodeURIComponent(state.datasetId)}`:'';const data=await api(`/api/stats${p}`);updateImportProgress(data.job);if(data.job.state==='running')jobTimer=setTimeout(pollJob,700);else{if(data.job.state==='complete')state.datasetId='';await loadStats();await loadMessages();if(data.job.state==='complete')toast(data.job.detail)}}catch(err){toast(err.message)}}
-function updateImportProgress(job){if(!job)return;const box=$("#importProgress");if(job.state==='idle'){box.hidden=true;return}box.hidden=false;const pct=job.total?Math.round(job.current/job.total*100):0;$("#importLabel").textContent=job.label||job.state;$("#importPercent").textContent=`${pct}%`;$("#importProgressBar").value=pct;$("#importDetail").textContent=job.error||job.detail||'';if(job.state==='running'){clearTimeout(jobTimer);jobTimer=setTimeout(pollJob,800)}}
+let jobTimer=null, jobPollActive=false;
+function queueJobPoll(delay=800){clearTimeout(jobTimer);jobTimer=setTimeout(pollJob,delay)}
+async function pollJob(){
+  clearTimeout(jobTimer);jobTimer=null;
+  if(jobPollActive)return;
+  jobPollActive=true;
+  try {
+    const data=await api('/api/import/status');
+    updateImportProgress(data.job);
+    if(data.job.state==='running')queueJobPoll();
+    else {
+      if(data.job.state==='complete')state.datasetId='';
+      await loadStats();await loadMessages();
+      if(data.job.state==='complete')toast(data.job.detail);
+    }
+  } catch(err){toast(err.message);queueJobPoll(1500)}
+  finally {jobPollActive=false}
+}
+function updateImportProgress(job){if(!job)return;const box=$("#importProgress");if(job.state==='idle'){box.hidden=true;return}box.hidden=false;const bar=$("#importProgressBar");$("#importLabel").textContent=job.label||job.state;if(job.state==='running'){bar.removeAttribute('value');$("#importPercent").textContent=`${job.current} / ${job.total} files`}else{bar.value=job.state==='complete'?100:0;$("#importPercent").textContent=job.state==='complete'?'100%':'STOPPED'}$("#importDetail").textContent=job.error||job.detail||''}
 
 function savedViews(){try{const v=JSON.parse(localStorage.getItem('traceglass.savedViews.v1')||'[]');return Array.isArray(v)?v:[]}catch{return []}}
 function renderSavedViews(){const views=savedViews();$('#savedQueries').innerHTML='<option value="">Choose a saved view…</option>'+views.map((v,i)=>`<option value="${i}">${escapeHtml(v.name)}</option>`).join('')}

@@ -41,6 +41,8 @@ JOB: dict[str, Any] = {
     "detail": "", "started_at": None, "finished_at": None, "error": None,
 }
 RAW_SEARCH_CACHE: dict[tuple[str, float, str], list[int]] = {}
+STATS_LOCK = threading.Lock()
+STATS_CACHE: dict[int, dict[str, Any]] = {}
 UPLOAD_LOCK = threading.Lock()
 MAX_UPLOAD_BYTES = 20 * 1024**3
 
@@ -82,13 +84,16 @@ def utc_now() -> str:
 
 
 @contextmanager
-def db() -> Iterator[sqlite3.Connection]:
-    DATA.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH, timeout=60)
+def db(*, readonly: bool = False) -> Iterator[sqlite3.Connection]:
+    if readonly:
+        conn = sqlite3.connect(DB_PATH.resolve().as_uri() + '?mode=ro', uri=True, timeout=60)
+    else:
+        DATA.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(DB_PATH, timeout=60)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA synchronous=NORMAL")
-    conn.execute("PRAGMA foreign_keys=ON")
+    if not readonly:
+        conn.execute("PRAGMA synchronous=NORMAL")
+        conn.execute("PRAGMA foreign_keys=ON")
     try:
         yield conn
         conn.commit()
@@ -238,6 +243,9 @@ CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
 
 def init_db() -> None:
     with db() as conn:
+        # WAL mode persists in the database. Reapplying it for every HTTP read
+        # can wait behind a large import's final checkpoint.
+        conn.execute("PRAGMA journal_mode=WAL")
         conn.executescript(SCHEMA)
         conn.executescript(investigations.SCHEMA)
         source_columns = {row[1] for row in conn.execute("PRAGMA table_info(sources)")}
@@ -396,8 +404,9 @@ def scalar_time(value: Any) -> float | None:
     if isinstance(value, dict):
         value = value.get("epoch")
     try:
-        return float(value) if value is not None else None
-    except (TypeError, ValueError):
+        number = float(value) if value is not None else None
+        return number if number is not None and math.isfinite(number) else None
+    except (TypeError, ValueError, OverflowError):
         return None
 
 
@@ -479,9 +488,11 @@ def sha256_file(path: Path, chunk: int = 1024 * 1024) -> str:
 
 
 def open_text(path: Path):
+    # Ignore an optional UTF-8 BOM only while decoding. Hashes and raw windows
+    # still follow the original source bytes, including the BOM.
     if path.suffix.lower() == ".gz":
-        return gzip.open(path, "rt", encoding="utf-8", errors="strict")
-    return path.open("rt", encoding="utf-8", errors="strict")
+        return gzip.open(path, "rt", encoding="utf-8-sig", errors="strict")
+    return path.open("rt", encoding="utf-8-sig", errors="strict")
 
 
 def unique_json_object(pairs):
@@ -493,13 +504,26 @@ def unique_json_object(pairs):
     return result
 
 
+def reject_json_constant(value: str) -> Any:
+    raise ValueError(f"Non-finite JSON number {value!r} is not supported")
+
+
+def finite_json_float(value: str) -> float:
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError(f"JSON number {value!r} exceeds the supported finite range")
+    return number
+
+
 def iter_json_values(path: Path) -> Iterator[Any]:
     """Bound the consumed buffer; memory still scales with the largest JSON value.
 
     Array separators/termination are strict. Outside arrays, whitespace-separated
     JSON values support NDJSON and single pretty-printed objects.
     """
-    decoder = json.JSONDecoder(object_pairs_hook=unique_json_object)
+    decoder = json.JSONDecoder(object_pairs_hook=unique_json_object,
+                               parse_constant=reject_json_constant,
+                               parse_float=finite_json_float)
     with open_text(path) as f:
         buf = ""
         pos = 0
@@ -514,7 +538,7 @@ def iter_json_values(path: Path) -> Iterator[Any]:
         def fill(min_available: int = 1) -> None:
             nonlocal buf, eof
             while not eof and len(buf) - pos < min_available:
-                chunk = f.read(1024 * 1024)
+                chunk = f.read(max(1024 * 1024, min_available - (len(buf) - pos)))
                 if not chunk:
                     eof = True
                     break
@@ -545,7 +569,10 @@ def iter_json_values(path: Path) -> Iterator[Any]:
                 except json.JSONDecodeError:
                     if eof:
                         raise
-                    fill(len(buf) - pos + 1)
+                # Retry incomplete values geometrically, outside the exception
+                # handler. Re-decoding a giant conversation after every MiB
+                # repeatedly allocates its entire partially decoded structure.
+                fill(max(1, 2 * (len(buf) - pos)))
 
         def finish_array() -> None:
             nonlocal pos
@@ -599,9 +626,8 @@ def candidate_files(inputs: Iterable[str | Path]) -> list[Path]:
         if path.is_dir():
             found = sorted(
                 p for p in path.rglob("*")
-                if p.is_file() and (
-                    p.name.endswith(".json") or p.name.endswith(".ndjson")
-                    or p.name.endswith(".json.gz") or p.name.endswith(".ndjson.gz")
+                if p.is_file() and p.name.lower().endswith(
+                    (".json", ".jsonl", ".ndjson", ".json.gz", ".jsonl.gz", ".ndjson.gz")
                 )
             )
         else:
@@ -626,23 +652,35 @@ def normalized_records(obj: Any) -> Iterator[dict[str, Any]]:
             value = obj.get(key)
             if isinstance(value, list):
                 for item in value:
-                    if isinstance(item, dict) and isinstance(item.get("mapping"), dict):
-                        yield {"kind": "conversation", "value": item}
+                    yield from normalized_records(item)
                 break
+
+
+def object_field(record: dict[str, Any], key: str, scope: str) -> dict[str, Any]:
+    """Read an optional object without treating other false-valued types as null."""
+    value = record.get(key)
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ValueError(f"{scope}.{key} must be a JSON object or null")
+    return value
 
 
 def insert_message(
     conn: sqlite3.Connection, source_id: int, conversation_id: str,
     title: str, node: dict[str, Any], source_locator: Any = None,
     chronological_sequence: int | None = None,
+    *, mapping_key: str | None = None,
 ) -> int:
-    msg = node.get("message") or {}
-    node_id = str(node.get("id") or msg.get("id") or f"missing-{source_id}-{time.time_ns()}")
+    msg = object_field(node, "message", "node")
+    node_id = mapping_key if mapping_key is not None else str(
+        node.get("id") or msg.get("id") or f"missing-{source_id}-{time.time_ns()}"
+    )
     message_id = msg.get("id")
-    author = msg.get("author") or {}
-    metadata = msg.get("metadata") or {}
-    finish = metadata.get("finish_details") or {}
-    content = msg.get("content") or {}
+    author = object_field(msg, "author", "node.message")
+    metadata = object_field(msg, "metadata", "node.message")
+    finish = object_field(metadata, "finish_details", "node.message.metadata")
+    content = object_field(msg, "content", "node.message")
     text = flatten_content(content)
     content_hash = hashlib.sha256(text.encode("utf-8", "replace")).hexdigest()
     visible_text_hash = hashlib.sha256(
@@ -699,7 +737,7 @@ def insert_message(
 
 def import_file(path: Path, dataset_id: int) -> int:
     stat = path.stat()
-    kind = "gzip" if path.suffix == ".gz" else "json"
+    kind = "gzip" if path.suffix.lower() == ".gz" else "json"
     with db() as conn:
         if conn.execute("SELECT 1 FROM sources WHERE path=?", (str(path),)).fetchone():
             raise ValueError("This source path is already indexed. Same-path replacement is disabled in the preview. Keep a new export at a distinct path to retain both versions.")
@@ -724,15 +762,13 @@ def import_file(path: Path, dataset_id: int) -> int:
                            json_compact({k: v for k, v in value.items() if k != "mapping"})))
                     for node_id, node in (value.get("mapping") or {}).items():
                         if not isinstance(node, dict):
-                            continue
-                        if node.get("id") and node["id"] != node_id:
+                            raise ValueError(f"mapping[{node_id!r}] must be a JSON object")
+                        if node.get("id") is not None and node["id"] != node_id:
                             raise ValueError(f"Mapping key {node_id!r} differs from embedded node.id {node['id']!r}; this preview cannot index both identities safely")
-                        if not node.get("id"):
-                            node = dict(node)
-                            node["id"] = str(node_id)
-                        count += insert_message(conn, source_id, conversation_id, title, node)
+                        count += insert_message(conn, source_id, conversation_id, title, node,
+                                                mapping_key=node_id)
                 else:
-                    conv = value.get("conversation") or {}
+                    conv = object_field(value, "conversation", "record")
                     conversation_id = str(conv.get("conversation_id") or "unknown")
                     title = conv.get("title") or "Untitled conversation"
                     conn.execute("""
@@ -769,7 +805,8 @@ def add_anomaly(conn: sqlite3.Connection, row: sqlite3.Row, rule: str,
     )
 
 
-def refresh_dataset_summary(conn: sqlite3.Connection, dataset_id: int) -> None:
+def dataset_summary(conn: sqlite3.Connection, dataset_id: int) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Calculate a summary without requiring a write transaction."""
     totals = dict(conn.execute("""
       SELECT
         (SELECT COUNT(*) FROM sources WHERE dataset_id=:dataset_id AND status='ready') sources,
@@ -822,6 +859,11 @@ def refresh_dataset_summary(conn: sqlite3.Connection, dataset_id: int) -> None:
       FROM anomalies a JOIN sources s ON s.id=a.source_id
       WHERE s.dataset_id=? GROUP BY a.rule,a.severity,a.title ORDER BY count DESC
     """, (dataset_id,))]
+    return totals, roles, rules
+
+
+def refresh_dataset_summary(conn: sqlite3.Connection, dataset_id: int) -> None:
+    totals, roles, rules = dataset_summary(conn, dataset_id)
     conn.execute("""
       INSERT INTO dataset_summaries(dataset_id,totals_json,roles_json,rules_json,updated_at)
       VALUES(?,?,?,?,?) ON CONFLICT(dataset_id) DO UPDATE SET
@@ -1124,7 +1166,17 @@ def analyze_source(source_id: int) -> None:
 def import_paths(paths: Iterable[str | Path]) -> dict[str, Any]:
     files = candidate_files(paths)
     if not files:
-        raise FileNotFoundError("No supported JSON, NDJSON, or GZIP files found")
+        raise FileNotFoundError("No supported JSON, JSONL, NDJSON, or GZIP files found")
+    # Preserve the last completed view before starting a potentially large write.
+    # Polling must not open SQLite during checkpoint or summary reconciliation.
+    with db(readonly=True) as conn:
+        active = api_stats(conn)
+        snapshots = {0: active}
+        for dataset in active['datasets']:
+            snapshots[int(dataset['id'])] = api_stats(conn, {'dataset_id': [str(dataset['id'])]})
+    with STATS_LOCK:
+        STATS_CACHE.clear()
+        STATS_CACHE.update(snapshots)
     total_rows = 0
     with db() as conn:
         previous_dataset_ids = {
@@ -1235,15 +1287,13 @@ def api_stats(conn: sqlite3.Connection, q: dict[str, list[str]] | None = None) -
         (dataset_id,),
     ).fetchone()
     if not summary:
-        refresh_dataset_summary(conn, dataset_id)
-        conn.commit()
-        summary = conn.execute(
-            "SELECT totals_json,roles_json,rules_json FROM dataset_summaries WHERE dataset_id=?",
-            (dataset_id,),
-        ).fetchone()
-    totals = json.loads(summary["totals_json"])
-    roles = json.loads(summary["roles_json"])
-    rules = json.loads(summary["rules_json"])
+        # A file can commit before reconciliation creates its cached summary.
+        # GET requests must not compete with the importer for a write lock.
+        totals, roles, rules = dataset_summary(conn, dataset_id)
+    else:
+        totals = json.loads(summary["totals_json"])
+        roles = json.loads(summary["roles_json"])
+        rules = json.loads(summary["rules_json"])
     sources = [dict(r) for r in conn.execute("""
       SELECT s.id,s.dataset_id,s.path,s.kind,s.size_bytes,s.sha256,s.imported_at,
              s.status,s.row_count,s.error,
@@ -1665,7 +1715,7 @@ def _source_search_offsets(path: Path, query: str, limit: int = 5000) -> list[in
     needle = query.encode("utf-8", "replace").lower()
     if not needle:
         return []
-    opener = gzip.open if path.suffix == ".gz" else open
+    opener = gzip.open if path.suffix.lower() == ".gz" else open
     offsets: list[int] = []
     overlap = b""
     consumed = 0
@@ -1719,12 +1769,12 @@ def api_source_raw(conn: sqlite3.Connection, source_id: int,
         else:
             match_index = 0
 
-    opener = gzip.open if path.suffix == ".gz" else open
+    opener = gzip.open if path.suffix.lower() == ".gz" else open
     with opener(path, "rb") as handle:
         handle.seek(offset)
         data = handle.read(length)
         eof = not bool(handle.read(1))
-    total_bytes: int | None = path.stat().st_size if path.suffix != ".gz" else None
+    total_bytes: int | None = path.stat().st_size if path.suffix.lower() != ".gz" else None
     if eof:
         total_bytes = offset + len(data)
     return {
@@ -1961,7 +2011,8 @@ class Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", "0"))
         if not 0 < length <= 10_000_000:
             raise ValueError("JSON request must be 1–10000000 bytes")
-        body = json.loads(self.rfile.read(length), object_pairs_hook=unique_json_object)
+        body = json.loads(self.rfile.read(length), object_pairs_hook=unique_json_object,
+                          parse_constant=reject_json_constant, parse_float=finite_json_float)
         if not isinstance(body, dict):
             raise ValueError("JSON object required")
         return body
@@ -1974,7 +2025,22 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"error":"Local hostname required"},403); return
             if parsed.path == "/api/health":
                 self.send_json({"ok":True,"database":str(DB_PATH),"time":utc_now()}); return
-            with db() as conn:
+            if parsed.path == "/api/import/status":
+                # Import progress must remain readable during commits and
+                # reconciliation without opening another database connection.
+                with JOB_LOCK:
+                    job = dict(JOB)
+                self.send_json({"job": job}); return
+            if parsed.path == "/api/stats":
+                with JOB_LOCK:
+                    job = dict(JOB)
+                if job['state'] == 'running':
+                    requested = parse_int((q.get('dataset_id') or [None])[0], 0, 0, 2**31)
+                    with STATS_LOCK:
+                        cached = STATS_CACHE.get(requested)
+                    if cached is not None:
+                        self.send_json(dict(cached, job=job, summary_status='before_current_import')); return
+            with db(readonly=True) as conn:
                 if parsed.path == "/api/investigations":
                     before=int(q["before"][0]) if "before" in q else None
                     self.send_json(investigations.list_cases(conn,before)); return

@@ -1,0 +1,33 @@
+name: Tests and synthetic import
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-latest, python: '3.10'}
+          - {os: ubuntu-latest, python: '3.14'}
+          - {os: macos-latest, python: '3.14'}
+          - {os: windows-latest, python: '3.14'}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Run synthetic regression tests
+        run: python -m unittest discover -s tests -v
+      - name: Exercise real import and HTTP APIs with 64 MiB of invented data
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.14'
+        run: python scripts/benchmark_large_import.py --workspace data/ci-64mib --size-mib 64
