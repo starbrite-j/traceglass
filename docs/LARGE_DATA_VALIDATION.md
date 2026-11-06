@@ -70,7 +70,7 @@ detail, atlas, graph windows, bounded parent walks, raw windows, and original-fi
 search. Reopening schema initialization preserves counts and provenance. Graph and
 ancestor limits remain explicit rather than claiming every node has been returned.
 
-The ordinary regression suite contains 55 tests, including malformed and late
+The ordinary regression suite contains 56 tests, including malformed and late
 failing imports, duplicate keys/identities, invalid UTF-8, source preservation,
 wrapped records, optional nulls, and database-independent progress/statistics.
 
@@ -121,6 +121,14 @@ Other corrected ingestion failures include missing JSONL and mixed-case director
 discovery, optional UTF-8 BOM handling, wrapped chronological records, invalid
 object-field types, non-finite values/timestamps, uppercase gzip raw viewing, and
 preserving missing versus null node IDs in raw record detail.
+
+The first cloud regression run also caught an atlas SQL query that passed with
+the workstation's SQLite build but failed on Linux and Windows with
+`no such column: c.current_node`. The replacement selects the declared current
+node, then falls back to the latest indexed node within the same source and
+conversation. A regression checks both choices and a missing current node. This
+query-only correction does not change the importer measured above; the corrected
+query is covered by the subsequent cloud smoke test.
 
 ## Reproduce
 

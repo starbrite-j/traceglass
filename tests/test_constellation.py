@@ -56,6 +56,18 @@ class ConstellationTests(unittest.TestCase):
         self.assertEqual(constellation.atlas(self.conn,{'dataset_id':['1'],'source_id':['2']})['total'],1)
         self.assertEqual(constellation.atlas(self.conn,{'dataset_id':['1'],'q':['%']})['total'],0)
 
+    def test_atlas_prefers_current_node_then_latest_in_same_source_and_conversation(self):
+        conn=sqlite3.connect(':memory:');conn.row_factory=sqlite3.Row
+        self.addCleanup(conn.close);conn.executescript(app.SCHEMA);seed(conn,2)
+        first=conn.execute("SELECT pk FROM messages WHERE source_id=1 AND conversation_id='long' AND node_id='n0'").fetchone()[0]
+        last=conn.execute("SELECT pk FROM messages WHERE source_id=1 AND conversation_id='long' AND node_id='n1'").fetchone()[0]
+        for current,expected in [('n0',first),('absent',last),(None,last)]:
+            with self.subTest(current=current):
+                conn.execute("UPDATE conversations SET current_node=? WHERE source_id=1 AND conversation_id='long'",(current,))
+                items=constellation.atlas(conn,{'dataset_id':['1'],'source_id':['1'],'q':['long']})['items']
+                self.assertEqual(len(items),1)
+                self.assertEqual(items[0]['pk'],expected)
+
     def test_expansion_beyond_200_and_unloaded_is_not_missing(self):
         d=self.graph()
         self.assertEqual(d['loaded_active'],600)
