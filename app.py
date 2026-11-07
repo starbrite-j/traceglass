@@ -20,10 +20,14 @@ import traceback
 import urllib.parse
 import investigations
 import constellation
+import relationships
+import streaming
+import operations
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from http import HTTPStatus
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
+from local_http import BoundedServer as ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Iterable, Iterator
 
@@ -40,8 +44,18 @@ JOB: dict[str, Any] = {
     "state": "idle", "label": "", "current": 0, "total": 0,
     "detail": "", "started_at": None, "finished_at": None, "error": None,
 }
-RAW_SEARCH_CACHE: dict[tuple[str, float, str], list[int]] = {}
+RAW_SEARCH_CACHE: dict = {}
+RAW_SEARCH_LOCK = threading.Lock()
+MAX_RAW_SCAN_BYTES = 4 * 1024**3
+MAX_RAW_SEARCH_SECONDS = 5.0
+MAX_GZIP_OFFSET = 64 * 1024**2
+STATS_LOCK = threading.Lock()
+STATS_CACHE: dict[int, dict[str, Any]] = {}
 UPLOAD_LOCK = threading.Lock()
+class ResourceLimitError(ValueError):
+    pass
+
+
 MAX_UPLOAD_BYTES = 20 * 1024**3
 
 
@@ -82,13 +96,16 @@ def utc_now() -> str:
 
 
 @contextmanager
-def db() -> Iterator[sqlite3.Connection]:
-    DATA.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH, timeout=60)
+def db(*, readonly: bool = False) -> Iterator[sqlite3.Connection]:
+    if readonly:
+        conn = sqlite3.connect(DB_PATH.resolve().as_uri() + '?mode=ro', uri=True, timeout=60)
+    else:
+        DATA.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(DB_PATH, timeout=5)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA synchronous=NORMAL")
-    conn.execute("PRAGMA foreign_keys=ON")
+    if not readonly:
+        conn.execute("PRAGMA synchronous=FULL")
+        conn.execute("PRAGMA foreign_keys=ON")
     try:
         yield conn
         conn.commit()
@@ -233,13 +250,26 @@ CREATE TABLE IF NOT EXISTS annotations (
 CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
   content_text, title, node_id UNINDEXED, conversation_id UNINDEXED
 );
-"""
+""" + relationships.SCHEMA + operations.SCHEMA
 
 
 def init_db() -> None:
+    with operations.writer_lease(DATA):
+        _init_db()
+
+
+def _init_db() -> None:
     with db() as conn:
+        # WAL mode persists in the database. Reapplying it for every HTTP read
+        # can wait behind a large import's final checkpoint.
+        conn.execute("PRAGMA journal_mode=WAL")
         conn.executescript(SCHEMA)
         conn.executescript(investigations.SCHEMA)
+        investigations.recover_pending(conn)
+        interrupted = operations.recover(conn,utc_now())
+        if interrupted:
+            with JOB_LOCK:
+                JOB.update(state="error",error="A previous import was interrupted; inspect /api/import/runs before relying on reconciliation",finished_at=utc_now())
         source_columns = {row[1] for row in conn.execute("PRAGMA table_info(sources)")}
         if "dataset_id" not in source_columns:
             conn.execute("ALTER TABLE sources ADD COLUMN dataset_id INTEGER REFERENCES datasets(id) ON DELETE SET NULL")
@@ -307,29 +337,34 @@ def init_db() -> None:
             "ON messages(source_id,display_time,pk)"
         )
         repair_context_search(conn)
+        relationships.backfill(conn)
 
 
 def repair_context_search(conn: sqlite3.Connection) -> int:
     """Repair derived search/display text only; preserve raw records and canonical hashes."""
-    rows = conn.execute("""
+    cursor = conn.execute("""
         SELECT m.pk,m.raw_json,m.content_text,m.node_id,m.conversation_id,c.title
         FROM messages m LEFT JOIN conversations c
           ON c.source_id=m.source_id AND c.conversation_id=m.conversation_id
-        WHERE m.content_type='user_editable_context'
-    """).fetchall()
+        WHERE m.content_type IN ('user_editable_context','thoughts','reasoning_recap','tether_browsing_display')
+    """)
     changed = 0
-    for row in rows:
-        raw = json.loads(row['raw_json'])
-        content = (raw.get('message') or {}).get('content') or {}
-        text = flatten_content(content)
-        if text == (row['content_text'] or ''):
-            continue
-        conn.execute('UPDATE messages SET content_text=?,content_hash=? WHERE pk=?',
-                     (text, hashlib.sha256(text.encode('utf-8', 'replace')).hexdigest(), row['pk']))
-        conn.execute('DELETE FROM messages_fts WHERE rowid=?', (row['pk'],))
-        conn.execute('INSERT INTO messages_fts(rowid,content_text,title,node_id,conversation_id) VALUES (?,?,?,?,?)',
-                     (row['pk'],text,row['title'] or '',row['node_id'],row['conversation_id']))
-        changed += 1
+    while True:
+        rows = cursor.fetchmany(100)
+        if not rows:
+            break
+        for row in rows:
+            raw = json.loads(row['raw_json'])
+            content = (raw.get('message') or {}).get('content') or {}
+            text = flatten_content(content)
+            if text == (row['content_text'] or ''):
+                continue
+            conn.execute('UPDATE messages SET content_text=?,content_hash=? WHERE pk=?',
+                         (text, hashlib.sha256(text.encode('utf-8', 'replace')).hexdigest(), row['pk']))
+            conn.execute('DELETE FROM messages_fts WHERE rowid=?', (row['pk'],))
+            conn.execute('INSERT INTO messages_fts(rowid,content_text,title,node_id,conversation_id) VALUES (?,?,?,?,?)',
+                         (row['pk'],text,row['title'] or '',row['node_id'],row['conversation_id']))
+            changed += 1
     return changed
 
 
@@ -396,8 +431,9 @@ def scalar_time(value: Any) -> float | None:
     if isinstance(value, dict):
         value = value.get("epoch")
     try:
-        return float(value) if value is not None else None
-    except (TypeError, ValueError):
+        number = float(value) if value is not None else None
+        return number if number is not None and math.isfinite(number) else None
+    except (TypeError, ValueError, OverflowError):
         return None
 
 
@@ -421,6 +457,18 @@ def flatten_content(content: Any) -> str:
         return '\n\n'.join(f'{key}:\n{content[key]}'
                            for key in ('user_profile', 'user_instructions')
                            if isinstance(content.get(key), str) and content[key])
+    if content.get('content_type') == 'thoughts' and isinstance(content.get('thoughts'), list):
+        out = []
+        for index, thought in enumerate(content['thoughts']):
+            if isinstance(thought, dict):
+                for field in ('summary', 'content'):
+                    if isinstance(thought.get(field), str) and thought[field]:
+                        out.append(f'exported thoughts[{index}].{field}:\n{thought[field]}')
+        return '\n\n'.join(out)
+    if content.get('content_type') in ('reasoning_recap', 'tether_browsing_display'):
+        fields = ('content',) if content['content_type'] == 'reasoning_recap' else ('result', 'summary')
+        return '\n\n'.join(f'exported {content["content_type"]}.{field}:\n{content[field]}'
+                           for field in fields if isinstance(content.get(field), str) and content[field])
     parts = content.get("parts")
     if isinstance(parts, list):
         out: list[str] = []
@@ -479,9 +527,11 @@ def sha256_file(path: Path, chunk: int = 1024 * 1024) -> str:
 
 
 def open_text(path: Path):
+    # Ignore an optional UTF-8 BOM only while decoding. Hashes and raw windows
+    # still follow the original source bytes, including the BOM.
     if path.suffix.lower() == ".gz":
-        return gzip.open(path, "rt", encoding="utf-8", errors="strict")
-    return path.open("rt", encoding="utf-8", errors="strict")
+        return gzip.open(path, "rt", encoding="utf-8-sig", errors="strict")
+    return path.open("rt", encoding="utf-8-sig", errors="strict")
 
 
 def unique_json_object(pairs):
@@ -493,13 +543,26 @@ def unique_json_object(pairs):
     return result
 
 
+def reject_json_constant(value: str) -> Any:
+    raise ValueError(f"Non-finite JSON number {value!r} is not supported")
+
+
+def finite_json_float(value: str) -> float:
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError(f"JSON number {value!r} exceeds the supported finite range")
+    return number
+
+
 def iter_json_values(path: Path) -> Iterator[Any]:
     """Bound the consumed buffer; memory still scales with the largest JSON value.
 
     Array separators/termination are strict. Outside arrays, whitespace-separated
     JSON values support NDJSON and single pretty-printed objects.
     """
-    decoder = json.JSONDecoder(object_pairs_hook=unique_json_object)
+    decoder = json.JSONDecoder(object_pairs_hook=unique_json_object,
+                               parse_constant=reject_json_constant,
+                               parse_float=finite_json_float)
     with open_text(path) as f:
         buf = ""
         pos = 0
@@ -514,7 +577,7 @@ def iter_json_values(path: Path) -> Iterator[Any]:
         def fill(min_available: int = 1) -> None:
             nonlocal buf, eof
             while not eof and len(buf) - pos < min_available:
-                chunk = f.read(1024 * 1024)
+                chunk = f.read(max(1024 * 1024, min_available - (len(buf) - pos)))
                 if not chunk:
                     eof = True
                     break
@@ -545,7 +608,10 @@ def iter_json_values(path: Path) -> Iterator[Any]:
                 except json.JSONDecodeError:
                     if eof:
                         raise
-                    fill(len(buf) - pos + 1)
+                # Retry incomplete values geometrically, outside the exception
+                # handler. Re-decoding a giant conversation after every MiB
+                # repeatedly allocates its entire partially decoded structure.
+                fill(max(1, 2 * (len(buf) - pos)))
 
         def finish_array() -> None:
             nonlocal pos
@@ -599,9 +665,8 @@ def candidate_files(inputs: Iterable[str | Path]) -> list[Path]:
         if path.is_dir():
             found = sorted(
                 p for p in path.rglob("*")
-                if p.is_file() and (
-                    p.name.endswith(".json") or p.name.endswith(".ndjson")
-                    or p.name.endswith(".json.gz") or p.name.endswith(".ndjson.gz")
+                if p.is_file() and p.name.lower().endswith(
+                    (".json", ".jsonl", ".ndjson", ".json.gz", ".jsonl.gz", ".ndjson.gz")
                 )
             )
         else:
@@ -626,23 +691,50 @@ def normalized_records(obj: Any) -> Iterator[dict[str, Any]]:
             value = obj.get(key)
             if isinstance(value, list):
                 for item in value:
-                    if isinstance(item, dict) and isinstance(item.get("mapping"), dict):
-                        yield {"kind": "conversation", "value": item}
+                    yield from normalized_records(item)
                 break
+
+
+def object_field(record: dict[str, Any], key: str, scope: str) -> dict[str, Any]:
+    """Read an optional object without treating other false-valued types as null."""
+    value = record.get(key)
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ValueError(f"{scope}.{key} must be a JSON object or null")
+    return value
 
 
 def insert_message(
     conn: sqlite3.Connection, source_id: int, conversation_id: str,
     title: str, node: dict[str, Any], source_locator: Any = None,
     chronological_sequence: int | None = None,
+    *, mapping_key: str | None = None,
 ) -> int:
-    msg = node.get("message") or {}
-    node_id = str(node.get("id") or msg.get("id") or f"missing-{source_id}-{time.time_ns()}")
+    msg = object_field(node, "message", "node")
+    node_id = mapping_key if mapping_key is not None else str(
+        node.get("id") or msg.get("id") or f"missing-{source_id}-{time.time_ns()}"
+    )
     message_id = msg.get("id")
-    author = msg.get("author") or {}
-    metadata = msg.get("metadata") or {}
-    finish = metadata.get("finish_details") or {}
-    content = msg.get("content") or {}
+    author = object_field(msg, "author", "node.message")
+    metadata = object_field(msg, "metadata", "node.message")
+    finish = object_field(metadata, "finish_details", "node.message.metadata")
+    content = object_field(msg, "content", "node.message")
+    for scope, obj, fields in (
+        ('node', node, ('parent',)),
+        ('node.message', msg, ('id','status','recipient','channel')),
+        ('node.message.author', author, ('role','name')),
+        ('node.message.content', content, ('content_type',)),
+        ('node.message.metadata', metadata, ('model_slug','default_model_slug','request_id','turn_exchange_id')),
+    ):
+        for field in fields:
+            value = obj.get(field)
+            if value is not None and (not isinstance(value,str) or len(value)>4096):
+                raise ValueError(f'{scope}.{field} must be a string of at most 4096 characters or null')
+    if isinstance(metadata.get('parent_id'),str) and len(metadata['parent_id'])>4096:
+        raise ValueError('node.message.metadata.parent_id exceeds the 4096-character identifier budget')
+    if node.get('children') is not None and (not isinstance(node['children'],list) or any(not isinstance(c,str) or len(c)>4096 for c in node['children'])):
+        raise ValueError('node.children must be an array of strings of at most 4096 characters or null')
     text = flatten_content(content)
     content_hash = hashlib.sha256(text.encode("utf-8", "replace")).hexdigest()
     visible_text_hash = hashlib.sha256(
@@ -678,6 +770,7 @@ def insert_message(
         (source_id, conversation_id, node_id),
     ).fetchone()
     pk = int(row[0])
+    relationships.cache_flags(conn,pk)
     conn.execute("DELETE FROM messages_fts WHERE rowid=?", (pk,))
     conn.execute(
         "INSERT INTO messages_fts(rowid,content_text,title,node_id,conversation_id) VALUES (?,?,?,?,?)",
@@ -699,8 +792,9 @@ def insert_message(
 
 def import_file(path: Path, dataset_id: int) -> int:
     stat = path.stat()
-    kind = "gzip" if path.suffix == ".gz" else "json"
-    with db() as conn:
+    kind = "gzip" if path.suffix.lower() == ".gz" else "json"
+    decoder = json.JSONDecoder(object_pairs_hook=unique_json_object, parse_constant=reject_json_constant, parse_float=finite_json_float)
+    with db() as conn, streaming.Source(path,decoder) as source_stream:
         if conn.execute("SELECT 1 FROM sources WHERE path=?", (str(path),)).fetchone():
             raise ValueError("This source path is already indexed. Same-path replacement is disabled in the preview. Keep a new export at a distinct path to retain both versions.")
         conn.execute(
@@ -709,9 +803,13 @@ def import_file(path: Path, dataset_id: int) -> int:
         )
         source_id = int(conn.execute("SELECT id FROM sources WHERE path=?", (str(path),)).fetchone()[0])
         count = 0
-        for obj in iter_json_values(path):
+        for obj in source_stream.values():
             for record in normalized_records(obj):
                 value = record["value"]
+                for field in ('id','conversation_id','title','current_node'):
+                    v=value.get(field)
+                    if v is not None and (not isinstance(v,str) or len(v)>4096):
+                        raise ValueError(f'conversation.{field} must be a string of at most 4096 characters or null')
                 if record["kind"] == "conversation":
                     conversation_id = str(value.get("id") or value.get("conversation_id") or f"conversation-{count}")
                     title = value.get("title") or "Untitled conversation"
@@ -721,18 +819,20 @@ def import_file(path: Path, dataset_id: int) -> int:
                       ) VALUES(?,?,?,?,?,?,?)
                     """, (source_id, conversation_id, title, scalar_time(value.get("create_time")),
                            scalar_time(value.get("update_time")), value.get("current_node"),
-                           json_compact({k: v for k, v in value.items() if k != "mapping"})))
+                           json_compact(streaming.metadata_value({k: v for k, v in value.items() if k != "mapping"}))))
                     for node_id, node in (value.get("mapping") or {}).items():
                         if not isinstance(node, dict):
-                            continue
-                        if node.get("id") and node["id"] != node_id:
+                            raise ValueError(f"mapping[{node_id!r}] must be a JSON object")
+                        if node.get("id") is not None and node["id"] != node_id:
                             raise ValueError(f"Mapping key {node_id!r} differs from embedded node.id {node['id']!r}; this preview cannot index both identities safely")
-                        if not node.get("id"):
-                            node = dict(node)
-                            node["id"] = str(node_id)
-                        count += insert_message(conn, source_id, conversation_id, title, node)
+                        count += insert_message(conn, source_id, conversation_id, title, node,
+                                                mapping_key=node_id)
                 else:
-                    conv = value.get("conversation") or {}
+                    conv = object_field(value, "conversation", "record")
+                    for field in ('conversation_id','title'):
+                        v=conv.get(field)
+                        if v is not None and (not isinstance(v,str) or len(v)>4096):
+                            raise ValueError(f'conversation.{field} must be a string of at most 4096 characters or null')
                     conversation_id = str(conv.get("conversation_id") or "unknown")
                     title = conv.get("title") or "Untitled conversation"
                     conn.execute("""
@@ -754,7 +854,7 @@ def import_file(path: Path, dataset_id: int) -> int:
         source_error = None if count else "No supported conversation or chronological records found"
         conn.execute(
             "UPDATE sources SET sha256=?,imported_at=?,status=?,row_count=?,error=? WHERE id=?",
-            (sha256_file(path), utc_now(), source_status, count, source_error, source_id),
+            (source_stream.verify(), utc_now(), source_status, count, source_error, source_id),
         )
         conn.commit()
     return count
@@ -769,7 +869,8 @@ def add_anomaly(conn: sqlite3.Connection, row: sqlite3.Row, rule: str,
     )
 
 
-def refresh_dataset_summary(conn: sqlite3.Connection, dataset_id: int) -> None:
+def dataset_summary(conn: sqlite3.Connection, dataset_id: int) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Calculate a summary without requiring a write transaction."""
     totals = dict(conn.execute("""
       SELECT
         (SELECT COUNT(*) FROM sources WHERE dataset_id=:dataset_id AND status='ready') sources,
@@ -822,6 +923,11 @@ def refresh_dataset_summary(conn: sqlite3.Connection, dataset_id: int) -> None:
       FROM anomalies a JOIN sources s ON s.id=a.source_id
       WHERE s.dataset_id=? GROUP BY a.rule,a.severity,a.title ORDER BY count DESC
     """, (dataset_id,))]
+    return totals, roles, rules
+
+
+def refresh_dataset_summary(conn: sqlite3.Connection, dataset_id: int) -> None:
+    totals, roles, rules = dataset_summary(conn, dataset_id)
     conn.execute("""
       INSERT INTO dataset_summaries(dataset_id,totals_json,roles_json,rules_json,updated_at)
       VALUES(?,?,?,?,?) ON CONFLICT(dataset_id) DO UPDATE SET
@@ -1122,9 +1228,29 @@ def analyze_source(source_id: int) -> None:
 
 
 def import_paths(paths: Iterable[str | Path]) -> dict[str, Any]:
+    try:
+        with operations.writer_lease(DATA):
+            return _import_paths(paths)
+    except Exception as exc:
+        with JOB_LOCK:
+            JOB.update(state='error',error=f'{type(exc).__name__}: {exc}',finished_at=utc_now())
+        raise
+
+
+def _import_paths(paths: Iterable[str | Path]) -> dict[str, Any]:
     files = candidate_files(paths)
     if not files:
-        raise FileNotFoundError("No supported JSON, NDJSON, or GZIP files found")
+        raise FileNotFoundError("No supported JSON, JSONL, NDJSON, or GZIP files found")
+    # Preserve the last completed view before starting a potentially large write.
+    # Polling must not open SQLite during checkpoint or summary reconciliation.
+    with db(readonly=True) as conn:
+        active = api_stats(conn)
+        snapshots = {0: active}
+        for dataset in active['datasets']:
+            snapshots[int(dataset['id'])] = api_stats(conn, {'dataset_id': [str(dataset['id'])]})
+    with STATS_LOCK:
+        STATS_CACHE.clear()
+        STATS_CACHE.update(snapshots)
     total_rows = 0
     with db() as conn:
         previous_dataset_ids = {
@@ -1140,6 +1266,7 @@ def import_paths(paths: Iterable[str | Path]) -> dict[str, Any]:
             "INSERT INTO datasets(name,created_at,input_json) VALUES(?,?,?) RETURNING id",
             (label, utc_now(), json_compact([str(path) for path in files])),
         ).fetchone()[0])
+        run_id=operations.begin(conn,dataset_id,files,utc_now())
     with JOB_LOCK:
         JOB.update(state="running", label="Indexing source records", current=0, total=len(files),
                    detail="", started_at=utc_now(), finished_at=None, error=None)
@@ -1153,6 +1280,8 @@ def import_paths(paths: Iterable[str | Path]) -> dict[str, Any]:
                 JOB["current"] = idx
         with JOB_LOCK:
             JOB["detail"] = "Reconciling lineage and structural markers across the complete dataset"
+        with db() as conn:
+            conn.execute("UPDATE import_runs SET phase='reconciling',rows_imported=? WHERE id=?",(total_rows,run_id))
         analyze_dataset(dataset_id)
         for previous_id in sorted(previous_dataset_ids - {dataset_id}):
             with db() as conn:
@@ -1168,10 +1297,14 @@ def import_paths(paths: Iterable[str | Path]) -> dict[str, Any]:
                 (dataset_id,),
             )
         analyze_cross_dataset_conflicts()
+        with db() as conn:
+            operations.finish(conn,run_id,"complete",utc_now(),total_rows)
         with JOB_LOCK:
             JOB.update(state="complete", detail=f"Indexed {total_rows:,} records", finished_at=utc_now())
         return {"dataset_id": dataset_id, "files": len(files), "rows": total_rows}
     except Exception as exc:
+        with db() as conn:
+            operations.finish(conn,run_id,"failed",utc_now(),total_rows,f"{type(exc).__name__}: {exc}"[:2000])
         with JOB_LOCK:
             JOB.update(state="error", error=f"{type(exc).__name__}: {exc}", finished_at=utc_now())
         raise
@@ -1235,15 +1368,13 @@ def api_stats(conn: sqlite3.Connection, q: dict[str, list[str]] | None = None) -
         (dataset_id,),
     ).fetchone()
     if not summary:
-        refresh_dataset_summary(conn, dataset_id)
-        conn.commit()
-        summary = conn.execute(
-            "SELECT totals_json,roles_json,rules_json FROM dataset_summaries WHERE dataset_id=?",
-            (dataset_id,),
-        ).fetchone()
-    totals = json.loads(summary["totals_json"])
-    roles = json.loads(summary["roles_json"])
-    rules = json.loads(summary["rules_json"])
+        # A file can commit before reconciliation creates its cached summary.
+        # GET requests must not compete with the importer for a write lock.
+        totals, roles, rules = dataset_summary(conn, dataset_id)
+    else:
+        totals = json.loads(summary["totals_json"])
+        roles = json.loads(summary["roles_json"])
+        rules = json.loads(summary["rules_json"])
     sources = [dict(r) for r in conn.execute("""
       SELECT s.id,s.dataset_id,s.path,s.kind,s.size_bytes,s.sha256,s.imported_at,
              s.status,s.row_count,s.error,
@@ -1252,7 +1383,9 @@ def api_stats(conn: sqlite3.Connection, q: dict[str, list[str]] | None = None) -
              END duplicate_copies
       FROM sources s WHERE s.dataset_id=? ORDER BY s.id
     """, (dataset_id,))]
-    return {"active_dataset_id": dataset_id, "datasets": datasets, "totals": totals,
+    latest_run=operations.runs(conn,dataset_id)
+    import_state=latest_run[0]["state"] if latest_run else "legacy_unverified"
+    return {"import_state":import_state,"active_dataset_id": dataset_id, "datasets": datasets, "totals": totals,
             "roles": roles, "rules": rules, "sources": sources, "job": dict(JOB)}
 
 
@@ -1410,6 +1543,11 @@ def api_messages(conn: sqlite3.Connection, q: dict[str, list[str]]) -> dict[str,
     pages = max(1, (count + page_size - 1) // page_size)
     page = min(page, pages)
     offset = (page - 1) * page_size
+    preview_sql='substr(m.content_text,1,1024)'
+    preview_params=[]
+    if search and effective_mode=='text':
+        preview_sql='substr(m.content_text,max(1,instr(lower(m.content_text),lower(?))-120),1024)'
+        preview_params=[needle]
     rows = conn.execute(f"""
       WITH page_pks AS (
         SELECT m.pk FROM messages m {join_scope} {join_fts}
@@ -1419,8 +1557,13 @@ def api_messages(conn: sqlite3.Connection, q: dict[str, list[str]]) -> dict[str,
       SELECT m.pk,m.source_id,m.conversation_id,c.title,m.node_id,m.message_id,m.parent_id,m.role,
              m.create_time raw_create_time,m.display_time create_time,m.timestamp_status,
              m.content_type,m.status,m.model_slug,m.request_id,m.turn_exchange_id,
-             m.content_text,m.stop_tokens,m.children_json,m.content_hash,m.metadata_json,
-             json_extract(m.raw_json,'$.message.content') content_json,
+             {preview_sql} content_text,
+             CASE WHEN length(m.stop_tokens)<=65536 THEN m.stop_tokens END stop_tokens,
+             CASE WHEN length(m.children_json)<=65536 THEN m.children_json ELSE '[]' END children_json,
+             json_array_length(m.children_json) child_count,length(m.children_json)>65536 children_truncated,
+             m.content_hash,CASE WHEN length(m.metadata_json)<=1048576 THEN m.metadata_json ELSE '{{}}' END metadata_json,
+             CASE WHEN length(m.raw_json)<=1048576 THEN json_extract(m.raw_json,'$.message.content') ELSE '{{}}' END content_json,
+             (length(m.raw_json)>1048576 OR length(m.metadata_json)>1048576) passage_limited,
              COUNT(DISTINCT a.id) anomaly_count,
              GROUP_CONCAT(DISTINCT a.rule) anomaly_rules,
              MAX(CASE WHEN a.rule='visually_hidden_from_conversation' THEN 1 ELSE 0 END) visually_hidden_present,
@@ -1432,7 +1575,7 @@ def api_messages(conn: sqlite3.Connection, q: dict[str, list[str]]) -> dict[str,
       LEFT JOIN anomalies a ON a.source_id=m.source_id AND a.conversation_id=m.conversation_id AND a.node_id=m.node_id
       LEFT JOIN annotations n ON n.source_id=m.source_id AND n.conversation_id=m.conversation_id AND n.node_id=m.node_id
       GROUP BY m.pk ORDER BY m.display_time IS NULL,m.display_time,m.pk
-    """, params + [page_size, offset]).fetchall()
+    """, params + [page_size, offset] + preview_params)
     items=[]
     for row in rows:
         d=dict(row)
@@ -1443,7 +1586,7 @@ def api_messages(conn: sqlite3.Connection, q: dict[str, list[str]]) -> dict[str,
         if exact_path:
             matches=matching_metadata_paths(md,exact_path,exact_value)
             d['match_path']=matches[0] if matches else 'message.metadata.'+exact_path
-            d['content_preview']=json.dumps(exact_value,ensure_ascii=False)
+            d['content_preview']=json.dumps(exact_value,ensure_ascii=False)[:360]
             d['matching_field_count']=len(matches)
         elif search:
             if effective_mode == 'ids':
@@ -1458,6 +1601,8 @@ def api_messages(conn: sqlite3.Connection, q: dict[str, list[str]]) -> dict[str,
             if not hit and effective_mode == 'text':
                 hit=matching_passage(d['title'],needle,'conversation.title')
             if hit: d['match_path'],d['content_preview']=hit
+        if d['passage_limited'] and search and not d['match_path']:
+            d['match_path']='derived.content_text (bounded preview)' if effective_mode=='text' else 'metadata predicate (passage exceeds preview budget)'
         d["children"] = json.loads(d.pop("children_json") or "[]")
         d["anomaly_rules"] = (d["anomaly_rules"] or "").split(",") if d["anomaly_rules"] else []
         d["hidden_metadata"] = "hidden_metadata_mention" in d["anomaly_rules"]
@@ -1475,9 +1620,15 @@ def parent_trace_checks(conn: sqlite3.Connection, source_id: int, conversation_i
                         node_id: str, limit: int = 200) -> dict[str, Any]:
     """Literal field walks: no substituted fields or links borrowed from other exports."""
     cache: dict[str, Any] = {}
+    remaining=8*1024**2
 
     def get(nid):
+        nonlocal remaining
         if nid not in cache:
+            size=conn.execute('SELECT length(metadata_json)+length(children_json) FROM messages WHERE source_id=? AND conversation_id=? AND node_id=?',(source_id,conversation_id,nid)).fetchone()
+            if size:
+                remaining-=size[0]
+                if remaining<0:raise ResourceLimitError('Parent trace exceeds byte budget; use the connected Lineage view')
             row = conn.execute("""
                 SELECT pk,node_id,role,parent_id,children_json,metadata_json,
                        json_type(raw_json,'$.parent') parent_type
@@ -1540,6 +1691,8 @@ def parent_trace_checks(conn: sqlite3.Connection, source_id: int, conversation_i
 
 
 def parent_versions(conn: sqlite3.Connection, conversation_id: str, node_id: str) -> dict[str, Any]:
+    size=conn.execute('SELECT sum(n) FROM (SELECT length(raw_json)+length(metadata_json) n FROM messages WHERE conversation_id=? AND node_id=? LIMIT 50)',(conversation_id,node_id)).fetchone()[0] or 0
+    if size>8*1024**2:raise ResourceLimitError('Export comparison exceeds byte budget; use the connected Lineage view')
     """Keep each imported source appearance separate; resolve targets without merging graphs."""
     rows = conn.execute("""
         SELECT m.pk,m.source_id,m.role,m.parent_id,m.metadata_json,m.children_json,
@@ -1606,6 +1759,8 @@ def parent_key_candidates(raw: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def api_message(conn: sqlite3.Connection, pk: int) -> dict[str, Any] | None:
+    size=conn.execute('SELECT length(raw_json)+length(content_text)+length(metadata_json)+length(children_json) FROM messages WHERE pk=?',(pk,)).fetchone()
+    if size and size[0]>8*1024**2:raise ResourceLimitError('Record detail exceeds 8 MiB budget; inspect bounded original-source JSON windows')
     row = conn.execute("""
       SELECT m.*,c.title,s.path source_path,s.sha256 source_sha256,s.dataset_id source_dataset_id,
              COALESCE(n.review_state,'unreviewed') review_state,
@@ -1658,22 +1813,26 @@ def api_message(conn: sqlite3.Connection, pk: int) -> dict[str, Any] | None:
 
 def _source_search_offsets(path: Path, query: str, limit: int = 5000) -> list[int]:
     """Locate literal UTF-8 text in the serialized source without modifying it."""
-    cache_key = (str(path), path.stat().st_mtime, query.lower())
-    cached = RAW_SEARCH_CACHE.get(cache_key)
-    if cached is not None:
-        return cached
-    needle = query.encode("utf-8", "replace").lower()
-    if not needle:
-        return []
-    opener = gzip.open if path.suffix == ".gz" else open
+    if len(query)>256:raise ValueError('Raw search query exceeds 256 characters')
+    needle = query.encode('utf-8','strict').lower()
+    stat=path.stat()
+    signature=(stat.st_dev,stat.st_ino,stat.st_size,stat.st_mtime_ns,stat.st_ctime_ns)
+    cache_key = (str(path),signature,needle)
+    with RAW_SEARCH_LOCK:cached=RAW_SEARCH_CACHE.get(cache_key)
+    if cached is not None:return cached
+    if not needle:return [],{'scan_complete':True,'scanned_bytes':0,'stop_reason':None}
+    opener = gzip.open if path.suffix.lower() == ".gz" else open
     offsets: list[int] = []
     overlap = b""
     consumed = 0
-    with opener(path, "rb") as handle:
+    deadline=time.monotonic()+MAX_RAW_SEARCH_SECONDS
+    stop_reason=None
+    with opener(path, 'rb') as handle:
         while True:
-            chunk = handle.read(2 * 1024 * 1024)
-            if not chunk:
-                break
+            if consumed>=MAX_RAW_SCAN_BYTES:stop_reason='byte_limit';break
+            if time.monotonic()>deadline:stop_reason='time_limit';break
+            chunk = handle.read(min(2*1024**2,MAX_RAW_SCAN_BYTES-consumed))
+            if not chunk:break
             combined = overlap + chunk
             base = consumed - len(overlap)
             lowered = combined.lower()
@@ -1689,11 +1848,15 @@ def _source_search_offsets(path: Path, query: str, limit: int = 5000) -> list[in
             consumed += len(chunk)
             overlap = combined[-max(0, len(needle) - 1):] if len(needle) > 1 else b""
             if len(offsets) >= limit:
-                break
-    if len(RAW_SEARCH_CACHE) >= 24:
-        RAW_SEARCH_CACHE.pop(next(iter(RAW_SEARCH_CACHE)))
-    RAW_SEARCH_CACHE[cache_key] = offsets
-    return offsets
+                stop_reason='match_limit';break
+    after=path.stat()
+    if signature!=(after.st_dev,after.st_ino,after.st_size,after.st_mtime_ns,after.st_ctime_ns):
+        raise ValueError('Source changed during raw search')
+    result=offsets,{'scan_complete':stop_reason is None,'scanned_bytes':consumed,'stop_reason':stop_reason}
+    with RAW_SEARCH_LOCK:
+        if len(RAW_SEARCH_CACHE)>=24:RAW_SEARCH_CACHE.pop(next(iter(RAW_SEARCH_CACHE)))
+        RAW_SEARCH_CACHE[cache_key]=result
+    return result
 
 
 def api_source_raw(conn: sqlite3.Connection, source_id: int,
@@ -1711,20 +1874,23 @@ def api_source_raw(conn: sqlite3.Connection, source_id: int,
     query = ((q.get("q") or [""])[0]).strip()
     match_index = parse_int((q.get("match") or [None])[0], 0, 0, 4999)
     matches: list[int] = []
+    scan={'scan_complete':None,'scanned_bytes':0,'stop_reason':None}
     if query:
-        matches = _source_search_offsets(path, query)
+        matches,scan = _source_search_offsets(path, query)
         if matches:
             match_index = min(match_index, len(matches) - 1)
             offset = max(0, matches[match_index] - length // 3)
         else:
             match_index = 0
 
-    opener = gzip.open if path.suffix == ".gz" else open
+    opener = gzip.open if path.suffix.lower() == ".gz" else open
+    if path.suffix.lower()==".gz" and offset>MAX_GZIP_OFFSET:
+        raise ValueError("Gzip window offset exceeds 64 MiB seek budget; extract the source to inspect later windows")
     with opener(path, "rb") as handle:
         handle.seek(offset)
         data = handle.read(length)
         eof = not bool(handle.read(1))
-    total_bytes: int | None = path.stat().st_size if path.suffix != ".gz" else None
+    total_bytes: int | None = path.stat().st_size if path.suffix.lower() != ".gz" else None
     if eof:
         total_bytes = offset + len(data)
     return {
@@ -1740,9 +1906,9 @@ def api_source_raw(conn: sqlite3.Connection, source_id: int,
         "total_bytes": total_bytes, "eof": eof,
         "content": data.decode("utf-8", "replace"),
         "query": query, "matches": matches, "match_count": len(matches),
-        "match_index": match_index,
+        "match_index": match_index, "search_scan":scan,
         "match_limit_reached": len(matches) >= 5000,
-        "scope_note": "Current on-disk source window, not an immutable snapshot. The imported checksum has NOT been reverified against these bytes. UTF-8 characters split at window boundaries may display as replacement characters.",
+        "scope_note": "Current on-disk source window, not an immutable snapshot. The imported checksum has NOT been reverified against these bytes. Raw search uses literal UTF-8 bytes with ASCII case insensitivity. Partial scans are labeled. UTF-8 characters split at window boundaries may display as replacement characters.",
     }
 
 
@@ -1943,25 +2109,71 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "Traceglass/0.1"
 
     def log_message(self, fmt: str, *args: Any) -> None:
-        sys.stderr.write("[%s] %s\n" % (self.log_date_time_string(), fmt % args))
+        message = re.sub(r'(GET|POST|HEAD|OPTIONS) ([^ ?]+)\?[^ ]*',r'\1 \2?[redacted]',fmt % args)
+        message = re.sub(r'[^\x20-\x7e]','?',message)[:1000]
+        sys.stderr.write('[%s] %s\n' % (self.log_date_time_string(),message))
+
+    def end_headers(self):
+        self.send_header('X-Content-Type-Options','nosniff')
+        self.send_header('X-Frame-Options','DENY')
+        self.send_header('Referrer-Policy','no-referrer')
+        self.send_header('Cross-Origin-Resource-Policy','same-origin')
+        self.send_header('Permissions-Policy','camera=(), microphone=(), geolocation=()')
+        self.send_header('Content-Security-Policy',"default-src 'self'; style-src 'self'; script-src 'self'; worker-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'; form-action 'self'")
+        super().end_headers()
+
+    def local_request(self):
+        host=self.headers.get('Host','')
+        return (len(self.headers.get_all('Host',[]))==1 and
+                host in {f'127.0.0.1:{self.server.server_port}',f'localhost:{self.server.server_port}'} and
+                self.headers.get('Origin') in (None,f'http://{host}') and
+                self.headers.get('Sec-Fetch-Site') in (None,'none','same-origin'))
+
+    def content_length(self, maximum):
+        values=self.headers.get_all('Content-Length',[])
+        if self.headers.get('Transfer-Encoding') or len(values)!=1 or not re.fullmatch(r'[0-9]+',values[0]):
+            raise ValueError('One fixed Content-Length is required')
+        length=int(values[0])
+        if not 0<length<=maximum:
+            raise ValueError(f'Request must contain 1–{maximum} bytes')
+        return length
+
+    @contextmanager
+    def read_database(self):
+        if not self.server.query_slots.acquire(blocking=False):
+            raise BlockingIOError('Read capacity is busy; retry shortly')
+        try:
+            with db(readonly=True) as conn:
+                conn.execute('BEGIN')
+                deadline=time.monotonic()+10
+                conn.set_progress_handler(lambda:int(time.monotonic()>deadline),10000)
+                yield conn
+        finally:
+            self.server.query_slots.release()
 
     def send_json(self, value: Any, status: int = 200) -> None:
-        raw = json.dumps(value, ensure_ascii=False, default=str).encode("utf-8")
+        parts=[];size=0
+        for part in json.JSONEncoder(ensure_ascii=False,default=str,allow_nan=False).iterencode(value):
+            encoded=part.encode('utf-8');size+=len(encoded)
+            if size>16*1024**2:
+                self.send_json({'error':'Response exceeds 16 MiB budget; narrow the graph/query or use bounded source windows'},413)
+                return
+            parts.append(encoded)
+        raw=b''.join(parts)
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(raw)))
         self.send_header("Cache-Control", "no-store")
-        self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("Content-Security-Policy", "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'self'")
         self.end_headers(); self.wfile.write(raw)
 
     def read_json(self) -> Any:
         if self.headers.get("Content-Type", "").split(";")[0].strip() != "application/json":
             raise ValueError("application/json required")
-        length = int(self.headers.get("Content-Length", "0"))
-        if not 0 < length <= 10_000_000:
-            raise ValueError("JSON request must be 1–10000000 bytes")
-        body = json.loads(self.rfile.read(length), object_pairs_hook=unique_json_object)
+        length = self.content_length(1_000_000)
+        raw_body=self.rfile.read(length)
+        if len(raw_body)!=length:raise ValueError("JSON body ended before Content-Length")
+        body = json.loads(raw_body, object_pairs_hook=unique_json_object,
+                          parse_constant=reject_json_constant, parse_float=finite_json_float)
         if not isinstance(body, dict):
             raise ValueError("JSON object required")
         return body
@@ -1970,20 +2182,48 @@ class Handler(BaseHTTPRequestHandler):
         parsed=urllib.parse.urlparse(self.path)
         q=urllib.parse.parse_qs(parsed.query)
         try:
-            if self.headers.get("Host", "") not in {f"127.0.0.1:{self.server.server_port}",f"localhost:{self.server.server_port}"}:
+            if not self.local_request():
                 self.send_json({"error":"Local hostname required"},403); return
             if parsed.path == "/api/health":
                 self.send_json({"ok":True,"database":str(DB_PATH),"time":utc_now()}); return
-            with db() as conn:
+            if parsed.path == "/api/import/status":
+                # Import progress must remain readable during commits and
+                # reconciliation without opening another database connection.
+                with JOB_LOCK:
+                    job = dict(JOB)
+                self.send_json({"job": job}); return
+            if parsed.path == "/api/stats":
+                with JOB_LOCK:
+                    job = dict(JOB)
+                if job['state'] == 'running':
+                    requested = parse_int((q.get('dataset_id') or [None])[0], 0, 0, 2**31)
+                    with STATS_LOCK:
+                        cached = STATS_CACHE.get(requested)
+                    if cached is not None:
+                        self.send_json(dict(cached, job=job, summary_status='before_current_import')); return
+            with self.read_database() as conn:
                 if parsed.path == "/api/investigations":
                     before=int(q["before"][0]) if "before" in q else None
                     self.send_json(investigations.list_cases(conn,before)); return
                 if re.fullmatch(r"/api/investigations/[a-f0-9-]+",parsed.path):
                     before=int(q["before"][0]) if "before" in q else None
                     self.send_json(investigations.read(conn,parsed.path.rsplit("/",1)[1],before)); return
+                if parsed.path == "/api/import/runs": self.send_json({"runs":operations.runs(conn,parse_int(q.get("dataset_id",[None])[0],0,0,2**31))});return
                 if parsed.path == "/api/stats": self.send_json(api_stats(conn,q)); return
+                if parsed.path in ('/api/constellation','/api/lineage'):
+                    conv=q.get('conversation_id',[''])[0]
+                    size=conn.execute('SELECT sum(length(content_text)+length(metadata_json)+length(children_json)) FROM messages WHERE conversation_id=?',(conv,)).fetchone()[0] or 0
+                    if size>8*1024**2:raise ResourceLimitError('Legacy graph exceeds 8 MiB byte budget; use the connected Lineage view')
                 if parsed.path == "/api/atlas": self.send_json(constellation.atlas(conn,q)); return
                 if parsed.path == "/api/constellation": self.send_json(constellation.graph(conn,q)); return
+                if parsed.path in ("/api/basins","/api/neighborhood"):
+                    try:
+                        function=relationships.basins if parsed.path=="/api/basins" else relationships.neighborhood
+                        self.send_json(relationships.read_snapshot(conn,function,q))
+                    except sqlite3.OperationalError as exc:
+                        if 'interrupted' not in str(exc).lower(): raise
+                        self.send_json({'error':'Graph query exceeded its 10 second SQLite budget; narrow the scope and retry.'},503)
+                    return
                 if parsed.path == "/api/parent-trace":
                     sid=constellation.integer(q,'source_id',0,1,2**31)
                     limit=constellation.integer(q,'limit',500,1,1000)
@@ -1998,21 +2238,27 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_json(item if item else {"error":"not found"}, 200 if item else 404); return
                 if parsed.path == "/api/lineage": self.send_json(api_lineage(conn,q)); return
             self.serve_static(parsed.path)
+        except BlockingIOError as exc:
+            self.send_json({'error':str(exc)},503)
+        except sqlite3.OperationalError as exc:
+            if 'interrupted' in str(exc).lower() or 'locked' in str(exc).lower():
+                self.send_json({'error':'Database work budget exceeded; narrow the query or retry shortly'},503)
+            else:
+                traceback.print_exc();self.send_json({'error':'Database read failed; details are in the local log'},500)
         except LookupError as exc:
             self.send_json({"error":str(exc)},404)
+        except ResourceLimitError as exc:
+            self.send_json({"error":str(exc)},413)
         except ValueError as exc:
-            self.send_json({"error":str(exc)},400)
+            self.send_json({"error":str(exc)[:2000]},400)
         except Exception as exc:
-            traceback.print_exc(); self.send_json({"error":f"{type(exc).__name__}: {exc}"},500)
+            traceback.print_exc(); self.send_json({"error":"Request failed; details are in the local log"},500)
 
     def do_POST(self) -> None:
         try:
             # Reject cross-site mutations, including requests to a rebound hostname.
-            allowed_hosts={f"127.0.0.1:{self.server.server_port}",f"localhost:{self.server.server_port}"}
-            host=self.headers.get("Host", "")
-            origin=self.headers.get("Origin")
-            if host not in allowed_hosts or (origin and origin != f"http://{host}"):
-                self.send_json({"error":"Local same-origin requests only"},403); return
+            if not self.local_request():
+                self.send_json({'error':'Local same-origin requests only'},403);return
             if urllib.parse.urlparse(self.path).path == "/api/upload":
                 if self.headers.get("Content-Type", "").split(";")[0].strip() != "application/octet-stream":
                     self.send_json({"error":"application/octet-stream required"},415); return
@@ -2023,14 +2269,14 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     query=urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
                     self.connection.settimeout(60)
-                    path=save_upload(self.rfile, query.get("name", [""])[0], int(self.headers.get("Content-Length", "0")))
+                    path=save_upload(self.rfile, query.get("name", [""])[0], self.content_length(MAX_UPLOAD_BYTES))
                 finally:
                     UPLOAD_LOCK.release()
                 self.send_json({"path":str(path), "stored_locally":True},201); return
             if self.path == "/api/investigations" or self.path.startswith("/api/investigations/"):
                 if self.headers.get("Content-Type", "").split(";")[0].strip() != "application/json":
                     self.send_json({"error":"application/json required"},415); return
-                size=int(self.headers.get("Content-Length", "0"))
+                size=self.content_length(100000)
                 if not 0 < size <= 100000:
                     self.send_json({"error":"Investigation request must be 1–100000 bytes"},413); return
                 body=self.read_json()
@@ -2051,7 +2297,8 @@ class Handler(BaseHTTPRequestHandler):
                             readers={"inspect_record":inspect,
                                      "trace_parents":lambda c,r:parent_trace_checks(c,r["source_id"],r["conversation_id"],r["node_id"]),
                                      "compare_exports":lambda c,r:parent_versions(c,r["conversation_id"],r["node_id"])}
-                            result=investigations.run_tool(conn,case_id,body,readers)
+                            with operations.writer_lease(DATA):
+                                result=investigations.run_tool(conn,case_id,body,readers)
                 self.send_json(result,201); return
             if self.path == "/api/import":
                 body=self.read_json(); paths=body.get("paths") or []
@@ -2080,12 +2327,21 @@ class Handler(BaseHTTPRequestHandler):
                     """,(row["source_id"],row["conversation_id"],row["node_id"],state,note,tags,utc_now()))
                 self.send_json({"saved":True,"review_state":state,"note":note,"tags":tags}); return
             self.send_json({"error":"not found"},404)
+        except BlockingIOError as exc:
+            self.send_json({"error":str(exc)},503)
         except LookupError as exc:
             self.send_json({"error":str(exc)},404)
+        except sqlite3.OperationalError as exc:
+            if 'locked' in str(exc).lower() or 'interrupted' in str(exc).lower():
+                self.send_json({'error':'Database busy; retry shortly'},503)
+            else:
+                traceback.print_exc();self.send_json({'error':'Database write failed; details are in the local log'},500)
+        except ResourceLimitError as exc:
+            self.send_json({"error":str(exc)},413)
         except (ValueError, TypeError) as exc:
             self.send_json({"error":str(exc)},400)
         except Exception as exc:
-            traceback.print_exc(); self.send_json({"error":f"{type(exc).__name__}: {exc}"},500)
+            traceback.print_exc(); self.send_json({"error":"Request failed; details are in the local log"},500)
 
     def serve_static(self, request_path: str) -> None:
         rel="index.html" if request_path in {"","/"} else request_path.lstrip("/")
@@ -2097,8 +2353,6 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type",mimetypes.guess_type(target.name)[0] or "application/octet-stream")
         self.send_header("Content-Length",str(len(raw)))
         self.send_header("Cache-Control","no-cache")
-        self.send_header("X-Content-Type-Options","nosniff")
-        self.send_header("Content-Security-Policy","default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'self'")
         self.end_headers(); self.wfile.write(raw)
 
 
@@ -2108,12 +2362,22 @@ def main(argv: list[str] | None = None) -> int:
     serve=sub.add_parser("serve"); serve.add_argument("--port",type=int,default=PORT)
     imp=sub.add_parser("import"); imp.add_argument("paths",nargs="+")
     sub.add_parser("import-sample")
+    verify=sub.add_parser('verify');verify.add_argument('--sources',action='store_true')
+    backup=sub.add_parser('backup');backup.add_argument('--out',type=Path,required=True)
     args=parser.parse_args(argv)
+    if args.command in ('verify','backup'):
+        with db(readonly=True) as conn:
+            if args.command=='verify':
+                conn.execute('BEGIN')
+                report=operations.verify(conn,canonical_content_hash,relationships.flags,sha256_file,args.sources)
+            else:report=operations.backup(conn,args.out)
+        print(json.dumps(report,indent=2))
+        return 0 if report['status']=='passed' else 1
     init_db()
     if args.command in {None,"serve"}:
         port=getattr(args,"port",PORT)
         server=ThreadingHTTPServer((HOST,port),Handler)
-        print(f"Traceglass is running at http://{HOST}:{port}",flush=True)
+        print(f"Traceglass is running at http://{HOST}:{server.server_port}",flush=True)
         try: server.serve_forever()
         except KeyboardInterrupt: pass
         finally: server.server_close()

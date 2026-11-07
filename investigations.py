@@ -15,6 +15,9 @@ CREATE TABLE IF NOT EXISTS investigation_events (
 );
 CREATE INDEX IF NOT EXISTS ix_investigation_events
  ON investigation_events(investigation_id,id);
+CREATE INDEX IF NOT EXISTS ix_investigation_tool_outcomes
+ ON investigation_events(investigation_id,json_extract(payload_json,'$.request_event_id'))
+ WHERE kind IN ('tool_result','tool_error');
 """
 NOTE_KINDS = {"note", "question", "hypothesis", "correction", "finding", "next_step"}
 TOOLS = {"inspect_record", "trace_parents", "compare_exports"}
@@ -122,6 +125,8 @@ def run_tool(conn, case_id, body, readers):
         raise ValueError("Tool not enabled. Only local inspect, parent trace, and export comparison are available")
     ref = record_reference(conn, body.get("pk"))
     request = append(conn, case_id, "user", "tool_request", tool, {"record": ref})
+    # Persist the attempt before executing a reader so a process crash cannot erase it.
+    conn.commit()
     # Each reader is provided explicitly by the server, never resolved from user code.
     try:
         result = readers[tool](conn, ref)
@@ -132,3 +137,19 @@ def run_tool(conn, case_id, body, readers):
     event = append(conn, case_id, "local_tool", "tool_result", tool,
                    {"request_event_id": request["id"], "tool": tool, "record": ref, "result": result})
     return {"ok": True, "event": event}
+
+
+def recover_pending(conn):
+    count=0
+    pending=conn.execute("""SELECT q.* FROM investigation_events q WHERE q.kind='tool_request'
+        AND NOT EXISTS(SELECT 1 FROM investigation_events r WHERE r.investigation_id=q.investigation_id
+        AND r.kind IN ('tool_result','tool_error') AND json_extract(r.payload_json,'$.request_event_id')=q.id)
+        ORDER BY q.id""")
+    for row in pending:
+        count+=1
+        payload=json.loads(row['payload_json'])
+        append(conn,row['investigation_id'],'local_tool','tool_error',
+               'Startup recovery: no completed outcome was recorded for this attempt.',
+               {'request_event_id':row['id'],'tool':row['text'],'record':payload.get('record'),
+                'outcome':'unrecorded_at_recovery'})
+    return count

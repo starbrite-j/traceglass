@@ -1,0 +1,640 @@
+{
+  "started_utc": "2026-11-06T19:34:52.449998Z",
+  "status": "failed",
+  "platform": "macOS-15.7.7-arm64-arm-64bit-Mach-O",
+  "python": "3.14.7",
+  "sqlite": "3.53.4",
+  "cpu": "arm",
+  "app_sha256": "b3fd229491ba0015e5118be8a95469581cb85facc1f860e1dd22abf621e9e396",
+  "benchmark_sha256": "708b8837c6bf06420ec02016c0e2525bbb1b9cfebe94d5591649d74fca2211a1",
+  "target_mib": 2048,
+  "scope": "Local synthetic text-heavy workload, not real private exports or all hardware/schema combinations.",
+  "manifest": {
+    "bytes": 2147490402,
+    "sha256": "72db37344a05c740a34f2799fdea369d89dea93ee780e80a5d89ef65efeb74dd",
+    "records": 165344,
+    "conversations": 10334,
+    "edges": 310020,
+    "samples": [
+      {
+        "conversation_id": "bench-c00000000",
+        "node_id": "bench-c00000000-n00",
+        "marker": "benchmarker000000000000",
+        "raw_sha256": "2c0da2ce8cd4f3b62a4cd8e0a212cf745c4b15e0902d4b57e211288cb0516c7a",
+        "ordinal": 0
+      },
+      {
+        "conversation_id": "bench-c00000625",
+        "node_id": "bench-c00000625-n00",
+        "marker": "benchmarker000000010000",
+        "raw_sha256": "f4e0434dd5d889cce26bacd1ca6c81b70d6eaaee1129949d62ccc690264ef6eb",
+        "ordinal": 10000
+      },
+      {
+        "conversation_id": "bench-c00001250",
+        "node_id": "bench-c00001250-n00",
+        "marker": "benchmarker000000020000",
+        "raw_sha256": "e425a98a200cd7c685817eff4de1197c4d0bd6f0b297b099758629c4d97feea9",
+        "ordinal": 20000
+      },
+      {
+        "conversation_id": "bench-c00001875",
+        "node_id": "bench-c00001875-n00",
+        "marker": "benchmarker000000030000",
+        "raw_sha256": "f28ca452a5cae84139ac2477d4ef009f8173e8884bebae3546afce22e9d07d92",
+        "ordinal": 30000
+      },
+      {
+        "conversation_id": "bench-c00002500",
+        "node_id": "bench-c00002500-n00",
+        "marker": "benchmarker000000040000",
+        "raw_sha256": "34349d5148e1a4ededc0cb5854c62001b1ee62680f44447205b88769e0d2a48c",
+        "ordinal": 40000
+      },
+      {
+        "conversation_id": "bench-c00003125",
+        "node_id": "bench-c00003125-n00",
+        "marker": "benchmarker000000050000",
+        "raw_sha256": "c20fbcd29e326a451e33c71d5966ca5bd66cc5dcfc97d6530be4e40736ee83ee",
+        "ordinal": 50000
+      },
+      {
+        "conversation_id": "bench-c00003750",
+        "node_id": "bench-c00003750-n00",
+        "marker": "benchmarker000000060000",
+        "raw_sha256": "64fcb187be3c2129b31f8767b023177525d7c12ee7ebc56dc82a2370b783f051",
+        "ordinal": 60000
+      },
+      {
+        "conversation_id": "bench-c00004375",
+        "node_id": "bench-c00004375-n00",
+        "marker": "benchmarker000000070000",
+        "raw_sha256": "af78474b3ec7aeed630bf36e00a842cf51bb69cf5ad7ba3322e91333cd7222b2",
+        "ordinal": 70000
+      },
+      {
+        "conversation_id": "bench-c00005000",
+        "node_id": "bench-c00005000-n00",
+        "marker": "benchmarker000000080000",
+        "raw_sha256": "aaa83d2ede68ea210566dd3b57c2b16079d118b7e82403bed7379561532c50ab",
+        "ordinal": 80000
+      },
+      {
+        "conversation_id": "bench-c00005625",
+        "node_id": "bench-c00005625-n00",
+        "marker": "benchmarker000000090000",
+        "raw_sha256": "94fb7223630c48c62c2ae7e576360e42c664ee4441462f0729fe2ce7df094c15",
+        "ordinal": 90000
+      },
+      {
+        "conversation_id": "bench-c00006250",
+        "node_id": "bench-c00006250-n00",
+        "marker": "benchmarker000000100000",
+        "raw_sha256": "e18555994dc4875afb5bfff7fdc2d200390a1a42205bd5c96619ed3f5eca6ad7",
+        "ordinal": 100000
+      },
+      {
+        "conversation_id": "bench-c00006875",
+        "node_id": "bench-c00006875-n00",
+        "marker": "benchmarker000000110000",
+        "raw_sha256": "313faeaa78df5ecb502cea8173de049b3703dcf5347225a498b1af3beef5b055",
+        "ordinal": 110000
+      },
+      {
+        "conversation_id": "bench-c00007500",
+        "node_id": "bench-c00007500-n00",
+        "marker": "benchmarker000000120000",
+        "raw_sha256": "8d7fdc641836249edbf4092a7df421e10113f9131b8eb14fc4ce48e4c929f50c",
+        "ordinal": 120000
+      },
+      {
+        "conversation_id": "bench-c00008125",
+        "node_id": "bench-c00008125-n00",
+        "marker": "benchmarker000000130000",
+        "raw_sha256": "592f7dd50616b914cd766ce2e7ec3ec9153e07fb888a45409a6d38e7a9a78507",
+        "ordinal": 130000
+      },
+      {
+        "conversation_id": "bench-c00008750",
+        "node_id": "bench-c00008750-n00",
+        "marker": "benchmarker000000140000",
+        "raw_sha256": "3f363dfc687bca7820d4194d75857f32b7f1d897acc558c1f980ac135df0b85f",
+        "ordinal": 140000
+      },
+      {
+        "conversation_id": "bench-c00009375",
+        "node_id": "bench-c00009375-n00",
+        "marker": "benchmarker000000150000",
+        "raw_sha256": "66eed7c43886b91b6ab79293c72c211a209471f07af07a7122217da163360ad6",
+        "ordinal": 150000
+      },
+      {
+        "conversation_id": "bench-c00010000",
+        "node_id": "bench-c00010000-n00",
+        "marker": "benchmarker000000160000",
+        "raw_sha256": "996d25950b2b67cc2a96e8dd766a63746b39b1b27101b782df3817ee53b50cbf",
+        "ordinal": 160000
+      },
+      {
+        "conversation_id": "bench-c00010333",
+        "node_id": "bench-c00010333-n15",
+        "marker": "benchmarker000000165343",
+        "raw_sha256": "a1f740e0d4345db978ae1ca4a8c52555393017bea66651485652260142266f88",
+        "ordinal": 165343
+      }
+    ],
+    "seed": 20261106,
+    "nodes_per_conversation": 16,
+    "generation_seconds": 19.800031541963108,
+    "shape": "16-node conversations; varied 96–65536 character text; multilingual vocabulary; unique IDs/markers"
+  },
+  "import_seconds": 87.68284970801324,
+  "import_peak_rss_bytes": 241352704,
+  "import_result": {
+    "dataset_id": 1,
+    "files": 1,
+    "rows": 165344
+  },
+  "phases": [
+    {
+      "phase": "import_file",
+      "seconds": 71.03762475005351,
+      "peak_rss_bytes": 241352704
+    },
+    {
+      "phase": "analyze_dataset",
+      "seconds": 9.03692670899909,
+      "peak_rss_bytes": 241352704
+    },
+    {
+      "phase": "analyze_cross_dataset_conflicts",
+      "seconds": 7.606704749981873,
+      "peak_rss_bytes": 241352704
+    }
+  ],
+  "live_import_probes": [
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 0,
+        "total": 1,
+        "detail": "invented-conversations.json: 16,000 records",
+        "started_at": "2026-11-06T19:35:12.275383Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 141721600,
+      "database_bytes": 192512,
+      "wal_bytes": 715083712,
+      "health_seconds": 0.001049333019182086,
+      "status_seconds": 0.0015012919902801514,
+      "stats_seconds": 0.0015602080384269357
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 0,
+        "total": 1,
+        "detail": "invented-conversations.json: 32,000 records",
+        "started_at": "2026-11-06T19:35:12.275383Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 227573760,
+      "database_bytes": 192512,
+      "wal_bytes": 1419372992,
+      "health_seconds": 0.001092083053663373,
+      "status_seconds": 0.0006197500042617321,
+      "stats_seconds": 0.00104825000744313
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 0,
+        "total": 1,
+        "detail": "invented-conversations.json: 48,000 records",
+        "started_at": "2026-11-06T19:35:12.275383Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 229294080,
+      "database_bytes": 192512,
+      "wal_bytes": 2096354912,
+      "health_seconds": 0.0007476670434698462,
+      "status_seconds": 0.000405333936214447,
+      "stats_seconds": 0.0012004169402644038
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 0,
+        "total": 1,
+        "detail": "invented-conversations.json: 64,000 records",
+        "started_at": "2026-11-06T19:35:12.275383Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 230686720,
+      "database_bytes": 192512,
+      "wal_bytes": 2743952992,
+      "health_seconds": 0.0020854580216109753,
+      "status_seconds": 0.0006987499073147774,
+      "stats_seconds": 0.0010615410283207893
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 0,
+        "total": 1,
+        "detail": "invented-conversations.json: 76,000 records",
+        "started_at": "2026-11-06T19:35:12.275383Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 232751104,
+      "database_bytes": 192512,
+      "wal_bytes": 3300919312,
+      "health_seconds": 0.0006793339271098375,
+      "status_seconds": 0.0014902499970048666,
+      "stats_seconds": 0.0014140000566840172
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 0,
+        "total": 1,
+        "detail": "invented-conversations.json: 92,000 records",
+        "started_at": "2026-11-06T19:35:12.275383Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 234160128,
+      "database_bytes": 192512,
+      "wal_bytes": 3929248152,
+      "health_seconds": 0.0014496669173240662,
+      "status_seconds": 0.0007400829344987869,
+      "stats_seconds": 0.0009536250727251172
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 0,
+        "total": 1,
+        "detail": "invented-conversations.json: 106,000 records",
+        "started_at": "2026-11-06T19:35:12.275383Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 235405312,
+      "database_bytes": 192512,
+      "wal_bytes": 4571284232,
+      "health_seconds": 0.0015434579690918326,
+      "status_seconds": 0.0005823749816045165,
+      "stats_seconds": 0.0010326249757781625
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 0,
+        "total": 1,
+        "detail": "invented-conversations.json: 120,000 records",
+        "started_at": "2026-11-06T19:35:12.275383Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 236601344,
+      "database_bytes": 192512,
+      "wal_bytes": 5171358112,
+      "health_seconds": 0.0013481669593602419,
+      "status_seconds": 0.00040720903780311346,
+      "stats_seconds": 0.0008192909881472588
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 0,
+        "total": 1,
+        "detail": "invented-conversations.json: 134,000 records",
+        "started_at": "2026-11-06T19:35:12.275383Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 237813760,
+      "database_bytes": 192512,
+      "wal_bytes": 5781291152,
+      "health_seconds": 0.0011666250647976995,
+      "status_seconds": 0.0011065409053117037,
+      "stats_seconds": 0.0012744589475914836
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 0,
+        "total": 1,
+        "detail": "invented-conversations.json: 148,000 records",
+        "started_at": "2026-11-06T19:35:12.275383Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 239058944,
+      "database_bytes": 192512,
+      "wal_bytes": 6374311592,
+      "health_seconds": 0.0015249999705702066,
+      "status_seconds": 0.0009426670148968697,
+      "stats_seconds": 0.001116959028877318
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 0,
+        "total": 1,
+        "detail": "invented-conversations.json: 156,000 records",
+        "started_at": "2026-11-06T19:35:12.275383Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 240402432,
+      "database_bytes": 192512,
+      "wal_bytes": 6728911752,
+      "health_seconds": 0.0011477499501779675,
+      "status_seconds": 0.0005264159990474582,
+      "stats_seconds": 0.0011847499990835786
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 0,
+        "total": 1,
+        "detail": "invented-conversations.json: 164,000 records",
+        "started_at": "2026-11-06T19:35:12.275383Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 241188864,
+      "database_bytes": 192512,
+      "wal_bytes": 7054985032,
+      "health_seconds": 0.0011193329701200128,
+      "status_seconds": 0.00042933307122439146,
+      "stats_seconds": 0.0012047499185428023
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 0,
+        "total": 1,
+        "detail": "invented-conversations.json: 164,000 records",
+        "started_at": "2026-11-06T19:35:12.275383Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 241270784,
+      "database_bytes": 414076928,
+      "wal_bytes": 7054985032,
+      "health_seconds": 0.0008296250598505139,
+      "status_seconds": 0.000528041971847415,
+      "stats_error": "TimeoutError: timed out"
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 1,
+        "total": 1,
+        "detail": "Reconciling lineage and structural markers across the complete dataset",
+        "started_at": "2026-11-06T19:35:12.275383Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 241352704,
+      "database_bytes": 7013965824,
+      "wal_bytes": 0,
+      "health_seconds": 0.0007842499762773514,
+      "status_seconds": 0.00043837493285536766,
+      "stats_seconds": 0.0008658339502289891
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 1,
+        "total": 1,
+        "detail": "Reconciling lineage and structural markers across the complete dataset",
+        "started_at": "2026-11-06T19:35:12.275383Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 241352704,
+      "database_bytes": 7013965824,
+      "wal_bytes": 0,
+      "health_seconds": 0.0012536250287666917,
+      "status_seconds": 0.0004369590897113085,
+      "stats_seconds": 0.000938915996812284
+    },
+    {
+      "job": {
+        "state": "running",
+        "label": "Indexing source records",
+        "current": 1,
+        "total": 1,
+        "detail": "Reconciling lineage and structural markers across the complete dataset",
+        "started_at": "2026-11-06T19:35:12.275383Z",
+        "finished_at": null,
+        "error": null
+      },
+      "peak_rss_bytes": 241352704,
+      "database_bytes": 7013965824,
+      "wal_bytes": 0,
+      "health_seconds": 0.0008500830736011267,
+      "status_seconds": 0.00038716604467481375,
+      "stats_seconds": 0.0008586249314248562
+    }
+  ],
+  "index_counts": {
+    "sources": 1,
+    "conversations": 10334,
+    "messages": 165344,
+    "messages_fts": 165344,
+    "edges": 310020
+  },
+  "sampled_raw_records_verified": 18,
+  "source_unchanged": true,
+  "sqlite_quick_check": "ok",
+  "fts_integrity_check": "ok",
+  "checks": [
+    "stats",
+    "ledger_first_page",
+    "ledger_last_page",
+    "text_search_first",
+    "record_detail_first",
+    "text_search_last",
+    "record_detail_last",
+    "id_search",
+    "exact_metadata_filter",
+    "atlas",
+    "constellation",
+    "parent_trace",
+    "raw_window",
+    "raw_search_full_file"
+  ],
+  "http_timings": {
+    "stats": {
+      "seconds": [
+        0.0017582919681444764,
+        0.001045290962792933,
+        0.0006830829661339521
+      ],
+      "median_seconds": 0.001045290962792933,
+      "max_seconds": 0.0017582919681444764,
+      "max_response_bytes": 1227
+    },
+    "ledger_first_page": {
+      "seconds": [
+        0.05533724999986589,
+        0.053366499952971935,
+        0.05475041700992733
+      ],
+      "median_seconds": 0.05475041700992733,
+      "max_seconds": 0.05533724999986589,
+      "max_response_bytes": 115190
+    },
+    "ledger_last_page": {
+      "seconds": [
+        0.05239558289758861,
+        0.054151208023540676,
+        0.05334629199933261
+      ],
+      "median_seconds": 0.05334629199933261,
+      "max_seconds": 0.054151208023540676,
+      "max_response_bytes": 51413
+    },
+    "text_search_first": {
+      "seconds": [
+        0.001463875058107078,
+        0.0009908339707180858,
+        0.0009282499086111784
+      ],
+      "median_seconds": 0.0009908339707180858,
+      "max_seconds": 0.001463875058107078,
+      "max_response_bytes": 1218
+    },
+    "record_detail_first": {
+      "seconds": [
+        0.0011230841046199203,
+        0.0009089580271393061,
+        0.0009190830169245601
+      ],
+      "median_seconds": 0.0009190830169245601,
+      "max_seconds": 0.0011230841046199203,
+      "max_response_bytes": 3240
+    },
+    "text_search_last": {
+      "seconds": [
+        0.004129915963858366,
+        0.0040934160351753235,
+        0.003954332903958857
+      ],
+      "median_seconds": 0.0040934160351753235,
+      "max_seconds": 0.004129915963858366,
+      "max_response_bytes": 1499
+    },
+    "record_detail_last": {
+      "seconds": [
+        0.0022363750031217933,
+        0.0019413749687373638,
+        0.0020409999415278435
+      ],
+      "median_seconds": 0.0020409999415278435,
+      "max_seconds": 0.0022363750031217933,
+      "max_response_bytes": 140847
+    },
+    "id_search": {
+      "seconds": [
+        0.2763430419145152,
+        0.2760230830172077,
+        0.2804198330268264
+      ],
+      "median_seconds": 0.2763430419145152,
+      "max_seconds": 0.2804198330268264,
+      "max_response_bytes": 1173
+    },
+    "exact_metadata_filter": {
+      "seconds": [
+        1.1423220420256257,
+        1.1444589169695973,
+        1.1913099999073893
+      ],
+      "median_seconds": 1.1444589169695973,
+      "max_seconds": 1.1913099999073893,
+      "max_response_bytes": 88420
+    },
+    "atlas": {
+      "seconds": [
+        0.046631042030639946,
+        0.045482374960556626,
+        0.04626970808021724
+      ],
+      "median_seconds": 0.04626970808021724,
+      "max_seconds": 0.046631042030639946,
+      "max_response_bytes": 10463
+    },
+    "constellation": {
+      "seconds": [
+        0.0019170830491930246,
+        0.0014682499459013343,
+        0.0014435420744121075
+      ],
+      "median_seconds": 0.0014682499459013343,
+      "max_seconds": 0.0019170830491930246,
+      "max_response_bytes": 12190
+    },
+    "parent_trace": {
+      "seconds": [
+        0.0013657910749316216,
+        0.0010636670049279928,
+        0.0010456250747665763
+      ],
+      "median_seconds": 0.0010636670049279928,
+      "max_seconds": 0.0013657910749316216,
+      "max_response_bytes": 3207
+    },
+    "raw_window": {
+      "seconds": [
+        0.0009033749811351299,
+        0.0007176670478656888,
+        0.00076916697435081
+      ],
+      "median_seconds": 0.00076916697435081,
+      "max_seconds": 0.0009033749811351299,
+      "max_response_bytes": 4872
+    },
+    "raw_search_full_file": {
+      "seconds": [
+        1.5162077499553561,
+        0.0016065409872680902,
+        0.0016966250259429216
+      ],
+      "median_seconds": 0.0016966250259429216,
+      "max_seconds": 1.5162077499553561,
+      "max_response_bytes": 99335
+    }
+  },
+  "source_id": 1,
+  "reopen_check": "ok",
+  "database_bytes": 7013965824,
+  "peak_rss_bytes": 241352704,
+  "error": "An HTTP responsiveness probe failed during import; inspect live_import_probes",
+  "finished_utc": "2026-11-06T19:37:07.344303Z"
+}

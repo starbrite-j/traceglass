@@ -1,0 +1,26 @@
+{
+  "status": "passed",
+  "app_sha256": "895176e9e0c9bb9764fc01027ed998086e8c517ab9e2c32780f801d5b75d9464",
+  "upload_started_utc": "2026-11-06T19:52:29.212Z",
+  "upload_response_utc": "2026-11-06T19:52:30.920576Z",
+  "index_started_utc": "2026-11-06T19:52:30.927045Z",
+  "index_finished_utc": "2026-11-06T19:54:23.897983Z",
+  "index_seconds": 112.970938,
+  "click_to_finished_seconds": 114.685983,
+  "copied_bytes": 2147490402,
+  "copied_sha256": "72db37344a05c740a34f2799fdea369d89dea93ee780e80a5d89ef65efeb74dd",
+  "indexed_records_in_selected_dataset": 165344,
+  "database_counts_after_two_copies": {
+    "sources": 2,
+    "conversations": 20668,
+    "messages": 330688,
+    "messages_fts": 330688,
+    "edges": 620040
+  },
+  "sampled_uploaded_records_verified": 18,
+  "prior_copy_retained": true,
+  "progress_poll_requests": 140,
+  "max_progress_requests_in_one_second": 2,
+  "median_progress_poll_interval_seconds": 0.80532,
+  "scope": "Actual native browser file picker, file upload, asynchronous import, source-copy hashes, retained copies, and tail-record search."
+}

@@ -26,8 +26,11 @@ def atlas(conn, q):
     page = min(page, max(1, (total+59)//60))
     rows = conn.execute(f"""SELECT c.conversation_id,c.source_id,c.title,c.current_node,
         (SELECT count(*) FROM messages m WHERE m.source_id=c.source_id AND m.conversation_id=c.conversation_id) nodes,
-        (SELECT pk FROM messages m WHERE m.source_id=c.source_id AND m.conversation_id=c.conversation_id
-          ORDER BY CASE WHEN m.node_id=c.current_node THEN 0 ELSE 1 END,m.pk DESC LIMIT 1) pk
+        COALESCE(
+          (SELECT pk FROM messages m WHERE m.source_id=c.source_id AND m.conversation_id=c.conversation_id
+            AND m.node_id=c.current_node LIMIT 1),
+          (SELECT pk FROM messages m WHERE m.source_id=c.source_id AND m.conversation_id=c.conversation_id
+            ORDER BY m.pk DESC LIMIT 1)) pk
         FROM conversations c JOIN sources s ON s.id=c.source_id WHERE {clause}
         ORDER BY c.update_time DESC,c.pk DESC LIMIT 60 OFFSET ?""", [*args, (page-1)*60]).fetchall()
     return {'items': [dict(r) for r in rows], 'page': page, 'total': total,
