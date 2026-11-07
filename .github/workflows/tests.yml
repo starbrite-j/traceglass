@@ -22,8 +22,10 @@ jobs:
           - {os: macos-latest, python: '3.14'}
           - {os: windows-latest, python: '3.14'}
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: ${{ matrix.python }}
       - name: Run synthetic regression tests
@@ -34,3 +36,6 @@ jobs:
       - name: Trace cross-chat references and siblings through 80,000 invented records
         if: matrix.os == 'ubuntu-latest' && matrix.python == '3.14'
         run: python scripts/benchmark_relationships.py --workspace data/ci-connected-80k --records 80000
+      - name: Verify streaming of one conversation and read-only consistency
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.14'
+        run: python scripts/benchmark_streaming_conversation.py --workspace data/ci-single-conversation --records 2000 --chars 8192

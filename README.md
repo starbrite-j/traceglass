@@ -112,11 +112,21 @@ Treat exports and rendered metadata as sensitive, including screenshots.
 credentials, or a ZIP of your entire working folder to a public issue/repository.
 The synthetic demo is the only intended public sample data.
 
+## Verification and backup
+
+`python3 app.py verify --sources` performs a read-only consistency/source-hash
+check. `python3 app.py backup --out /absolute/private/path/new-snapshot.sqlite3`
+creates a checked SQLite snapshot including the notebook. Source archives need
+separate backups. See the [verifier review](docs/VERIFIER_REVIEW.md) for the review
+verdict, found/fixed holes, measurements, restore procedure, and production gates.
+
 ## Known limits
 
-- Import is incremental across top-level JSON values, **not constant-memory**:
-  the largest individual conversation/value must fit in memory. Indexes consume
-  disk space; there is no promise that every multi-gigabyte export fits every PC.
+- Import spills large conversation mappings to temporary storage. Memory still
+  scales with an individual decoded node/value, metadata, key indexes, and SQLite
+  work. Input/value/depth/expansion/time budgets reject unsupported work explicitly.
+  Indexes and temporary spools consume additional disk space; there is no promise
+  that every multi-gigabyte export fits every PC.
 - Duplicate JSON keys, invalid UTF-8, non-finite numbers (`NaN`, `Infinity`, or
   floating-point overflow), conflicting mapping-key/node identities, and repeated
   indexed identities within one file fail rather than select a winner. Recognized
@@ -131,8 +141,10 @@ The synthetic demo is the only intended public sample data.
 - Raw view reads the **current file**, not an immutable snapshot. Its displayed
   imported checksum is not reverified against each window. If a source changes
   after indexing, raw view and indexed detail may disagree.
-- Raw windows are at most 256 KiB; raw search retains up to 5,000 matches and may
-  scan the whole file. Gzip seeks can require decompression from the beginning.
+- Raw windows are at most 256 KiB; raw search retains up to 5,000 matches with a
+  4 GiB / five-second scan budget. Partial scans are labeled. Gzip seeks are capped
+  at 64 MiB; extract the source to inspect later windows. Detail and legacy graph
+  byte limits direct large requests to bounded source windows or connected Lineage.
 - Graph and ancestor walks are bounded. The connected graph reports clipped
   windows, ambiguous candidates, unresolved references, and work limits explicitly.
   Its basin overview is a bounded summary; open a record for exact reference
@@ -146,6 +158,9 @@ Back up source archives independently. To start an empty workspace, stop the ser
 and move `data/` to a safe backup location; restarting creates a new local database.
 
 ## Measured large-data validation
+
+The [verifier review](docs/VERIFIER_REVIEW.md) contains the current hardened-build
+results. The following paragraph records the preceding connected-graph build.
 
 With the connected graph indexes enabled, a real 2.00 GiB synthetic JSON import
 with 165,344 records completed in **125.7 seconds**, using **225.8 MiB process peak

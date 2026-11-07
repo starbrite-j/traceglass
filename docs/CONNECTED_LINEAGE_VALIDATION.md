@@ -1,5 +1,9 @@
 # Connected history: rules and measured validation
 
+This report pins the first connected-graph build. Later streaming, integrity,
+resource, and recovery changes are covered by the [verifier review](VERIFIER_REVIEW.md).
+Its limits and measurements supersede the historical ones below where indicated.
+
 The Lineage view now traces a graph of **record occurrences across conversations**.
 Siblings and branches without descendants remain connected through their recorded
 parents. Reused IDs retain separate occurrences, including conflicting copies.

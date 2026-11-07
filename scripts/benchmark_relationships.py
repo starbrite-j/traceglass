@@ -61,7 +61,7 @@ def main():
     request(port,'/api/health')
     report={'started_utc':app.utc_now(),'platform':platform.platform(),'python':platform.python_version(),'sqlite':sqlite3.sqlite_version,'benchmark_sha256':app.sha256_file(Path(__file__)),'status':'running','records':args.records,'source_bytes':source.stat().st_size,'source_sha256':before,
             'import_seconds':elapsed,'app_sha256':app.sha256_file(ROOT/'app.py'),
-            'relationships_sha256':app.sha256_file(ROOT/'relationships.py'),'checks':[]}
+            'relationships_sha256':app.sha256_file(ROOT/'relationships.py'), 'implementation_sha256':{name:app.sha256_file(ROOT/name) for name in ('app.py','relationships.py','streaming.py','local_http.py','operations.py','constellation.py','investigations.py','static/app.js','static/constellation.js','static/constellation-worker.js')},'checks':[]}
     try:
         with app.db(readonly=True) as conn:
             focus=conn.execute("SELECT pk FROM messages WHERE node_id='fixture-c0-n0'").fetchone()[0]

@@ -2,6 +2,7 @@
 import json
 import re
 import time
+import operations
 from collections import deque, defaultdict
 
 SCHEMA = """
@@ -13,6 +14,13 @@ CREATE TABLE IF NOT EXISTS lineage_refs (
 CREATE INDEX IF NOT EXISTS ix_lineage_target ON lineage_refs(target_id,field,owner_pk);
 CREATE INDEX IF NOT EXISTS ix_messages_global_node ON messages(node_id,source_id,conversation_id,pk);
 CREATE INDEX IF NOT EXISTS ix_messages_lineage_catalog ON messages(source_id,conversation_id,node_id,message_id,pk);
+CREATE TABLE IF NOT EXISTS lineage_events (
+  owner_pk INTEGER PRIMARY KEY REFERENCES messages(pk) ON DELETE CASCADE,
+  flags_json TEXT NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS lineage_event_invalidate AFTER UPDATE OF raw_json,content_text,status,role,recipient,channel,content_type,metadata_json,parent_id,children_json ON messages BEGIN
+  DELETE FROM lineage_events WHERE owner_pk=new.pk;
+END;
 CREATE TABLE IF NOT EXISTS lineage_index_state(version INTEGER PRIMARY KEY);
 CREATE TRIGGER IF NOT EXISTS lineage_insert AFTER INSERT ON messages BEGIN
   INSERT INTO lineage_refs SELECT new.pk,'node.parent',-1,new.parent_id
@@ -33,20 +41,35 @@ CREATE TRIGGER IF NOT EXISTS lineage_update AFTER UPDATE OF parent_id,metadata_j
 END;
 CREATE TRIGGER IF NOT EXISTS lineage_delete AFTER DELETE ON messages BEGIN
   DELETE FROM lineage_refs WHERE owner_pk=old.pk;
+  DELETE FROM lineage_events WHERE owner_pk=old.pk;
 END;
 """
 
 
+FLAG_COLUMNS = 'raw_json,content_text,status,content_type,role,channel,recipient'
+
+
+def cache_flags(conn, pk):
+    row = conn.execute('SELECT '+FLAG_COLUMNS+' FROM messages WHERE pk=?',(pk,)).fetchone()
+    conn.execute('INSERT OR REPLACE INTO lineage_events VALUES(?,?)',
+                 (pk,json.dumps(flags(row),ensure_ascii=True,separators=(',',':'))))
+
+
 def backfill(conn):
-    if conn.execute('SELECT 1 FROM lineage_index_state WHERE version=1').fetchone():
-        return
-    conn.execute("INSERT OR IGNORE INTO lineage_refs SELECT pk,'node.parent',-1,parent_id FROM messages WHERE typeof(parent_id)='text' AND parent_id<>''")
-    conn.execute("""INSERT OR IGNORE INTO lineage_refs SELECT pk,'message.metadata.parent_id',-1,
-        json_extract(metadata_json,'$.parent_id') FROM messages
-        WHERE json_type(metadata_json,'$.parent_id')='text' AND json_extract(metadata_json,'$.parent_id')<>''""")
-    conn.execute("""INSERT OR IGNORE INTO lineage_refs SELECT m.pk,'node.children',CAST(j.key AS INTEGER),j.value
-        FROM messages m,json_each(m.children_json) j WHERE j.type='text' AND j.value<>''""")
-    conn.execute('INSERT INTO lineage_index_state VALUES(1)')
+    if not conn.execute('SELECT 1 FROM lineage_index_state WHERE version=1').fetchone():
+        conn.execute("INSERT OR IGNORE INTO lineage_refs SELECT pk,'node.parent',-1,parent_id FROM messages WHERE typeof(parent_id)='text' AND parent_id<>''")
+        conn.execute("""INSERT OR IGNORE INTO lineage_refs SELECT pk,'message.metadata.parent_id',-1,
+            json_extract(metadata_json,'$.parent_id') FROM messages
+            WHERE json_type(metadata_json,'$.parent_id')='text' AND json_extract(metadata_json,'$.parent_id')<>''""")
+        conn.execute("""INSERT OR IGNORE INTO lineage_refs SELECT m.pk,'node.children',CAST(j.key AS INTEGER),j.value
+            FROM messages m,json_each(m.children_json) j WHERE j.type='text' AND j.value<>''""")
+        conn.execute('INSERT INTO lineage_index_state VALUES(1)')
+    last=0
+    while True:
+        pending=[r[0] for r in conn.execute('SELECT m.pk FROM messages m LEFT JOIN lineage_events e ON e.owner_pk=m.pk WHERE m.pk>? AND e.owner_pk IS NULL ORDER BY m.pk LIMIT 100',(last,))]
+        if not pending:break
+        for pk in pending:cache_flags(conn,pk)
+        last=pending[-1]
 
 
 def integer(q, key, default, low, high):
@@ -93,7 +116,7 @@ def flags(row):
             'outer_parent_state': 'missing' if 'parent' not in raw else 'null' if raw['parent'] is None else 'text' if isinstance(raw['parent'],str) else 'invalid',
             'outer_parent': raw.get('parent'),
             'metadata_parent_state': 'missing' if 'parent_id' not in md else 'null' if md['parent_id'] is None else 'text' if isinstance(md['parent_id'],str) else 'invalid',
-            'metadata_parent': md.get('parent_id')}
+            'metadata_parent': md.get('parent_id') if isinstance(md.get('parent_id'),str) else None}
 
 
 class Neighborhood:
@@ -241,10 +264,11 @@ def neighborhood(conn, q):
     for offset in range(0, len(chosen), 400):
         batch = chosen[offset:offset+400]
         marks = ','.join('?' for _ in batch)
-        rows = conn.execute(f'''SELECT m.*,c.title,s.dataset_id FROM messages m JOIN sources s ON s.id=m.source_id LEFT JOIN conversations c
+        rows = conn.execute(f'''SELECT m.pk,m.node_id,m.message_id,m.source_id,m.conversation_id,m.role,m.content_type,m.status,m.recipient,m.display_time,m.timestamp_status,substr(m.content_text,1,200) content_text,m.canonical_content_hash,e.flags_json,c.title,s.dataset_id FROM messages m LEFT JOIN lineage_events e ON e.owner_pk=m.pk JOIN sources s ON s.id=m.source_id LEFT JOIN conversations c
             ON c.source_id=m.source_id AND c.conversation_id=m.conversation_id WHERE m.pk IN ({marks})''', batch)
         for node in rows:
-            node_flags = flags(node)
+            if node['flags_json'] is None:raise BlockingIOError('Derived event index needs repair; restart Traceglass before tracing this record')
+            node_flags = json.loads(node['flags_json'])
             nodes.append({'id': key(node['pk']), 'pk': node['pk'], 'node_id': node['node_id'], 'message_id': node['message_id'],
                 'source_id': node['source_id'], 'dataset_id':node['dataset_id'], 'conversation_id': node['conversation_id'], 'title': node['title'],
                 'role': node['role'], 'content_type': node['content_type'], 'status': node['status'], 'recipient': node['recipient'],
@@ -273,7 +297,7 @@ def neighborhood(conn, q):
             edge['content_differs'] = by_id[edge['source']]['content_hash'] != by_id[edge['target']]['content_hash']
     source_ids = sorted({n['source_id'] for n in nodes})
     sources = [dict(r) for r in conn.execute('SELECT id,dataset_id,path,sha256,size_bytes FROM sources WHERE id IN ('+','.join('?' for _ in source_ids)+')',source_ids)]
-    return {'schema_version':1,'nodes': nodes, 'edges': edges, 'gaps': list(graph.gaps.values()), 'unloaded_edges': unloaded[:200], 'sources':sources,
+    return {'schema_version':2,'index_id':operations.identity(conn),'nodes': nodes, 'edges': edges, 'gaps': list(graph.gaps.values()), 'unloaded_edges': unloaded[:200], 'sources':sources,
             'unloaded_edge_count': len(unloaded), 'bounds': list(graph.bounds.values()),
             'truncated': boundary or bool(graph.bounds), 'limit': limit, 'depth': depth, 'focus': key(pk),
             'dataset_id': row['dataset_id'], 'compare_dataset_id':compare,

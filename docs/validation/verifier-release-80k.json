@@ -1,0 +1,54 @@
+{
+  "started_utc": "2026-11-07T06:19:36.413462Z",
+  "platform": "macOS-15.7.7-arm64-arm-64bit-Mach-O",
+  "python": "3.14.7",
+  "sqlite": "3.53.4",
+  "benchmark_sha256": "92661484d262b78c0431986566961d420e3bb74c9010335251054dd2796f8f83",
+  "status": "passed",
+  "records": 80000,
+  "source_bytes": 38180881,
+  "source_sha256": "11f92e4f3cf75f724e4c8ee1313d4568206ca0f0242af5237b55a1a06798d6f2",
+  "import_seconds": 16.177503583021462,
+  "app_sha256": "17ed97560d72e7d8a21040ec3e2e939a5a2fd66724d8bd7d0ce0062e2ae737f7",
+  "relationships_sha256": "308182575ca1a7b5d79ade7316a96c9816ecc1c283049084457f77e30280b9a5",
+  "implementation_sha256": {
+    "app.py": "17ed97560d72e7d8a21040ec3e2e939a5a2fd66724d8bd7d0ce0062e2ae737f7",
+    "relationships.py": "308182575ca1a7b5d79ade7316a96c9816ecc1c283049084457f77e30280b9a5",
+    "streaming.py": "a1e24e879d96dfe3c1e4fab2e9359b8f8305f9039a375b0c8e2ac9095fa1c9ff",
+    "local_http.py": "bc75028e1a12929a2d0423f5209e65cd06dbb8e092aa8190ced21509b70fa86c",
+    "operations.py": "727a51f9142db89043bbc5801052b1c52c0edf2b315e58b20a11e3b4c53ae289",
+    "constellation.py": "170d79aa7c170b35fbbb3dc1ad4038e232562f38f603a04736f875c94857d766",
+    "investigations.py": "6ee26b208fe8f2404ec7e6ad6b7d1e1d84df78cc8eef06d1f06aa6629b21946a",
+    "static/app.js": "86883cc9412cf578a8d8853f42f1f364a855c8ff830b7464b0896829a8572787",
+    "static/constellation.js": "b8167c35c1068ca871fddbc5ca3dad1f6eaddff01664a19e07d6dc08784eaf65",
+    "static/constellation-worker.js": "10af02bdf6ac3a0451d714525c4838b461ebb90511a6417be04519d075fc3fd7"
+  },
+  "checks": [
+    {
+      "name": "basins",
+      "seconds": 0.5218712920323014,
+      "response_bytes": 4961,
+      "nodes": 12,
+      "edges": 18,
+      "truncated": false
+    },
+    {
+      "name": "neighborhood_300",
+      "seconds": 0.024471875047311187,
+      "response_bytes": 240930,
+      "nodes": 83,
+      "edges": 182,
+      "truncated": true
+    },
+    {
+      "name": "neighborhood_900",
+      "seconds": 0.09555387496948242,
+      "response_bytes": 769232,
+      "nodes": 366,
+      "edges": 790,
+      "truncated": true
+    }
+  ],
+  "source_unchanged": true,
+  "peak_rss_bytes": 129892352
+}

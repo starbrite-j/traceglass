@@ -214,7 +214,7 @@ def main():
     report = {'started_utc': app.utc_now(), 'status': 'running', 'platform': platform.platform(),
               'python': platform.python_version(), 'sqlite': sqlite3.sqlite_version,
               'cpu': platform.processor(), 'app_sha256': app.sha256_file(ROOT / 'app.py'),
-              'relationships_sha256': app.sha256_file(ROOT / 'relationships.py'),
+              'relationships_sha256': app.sha256_file(ROOT / 'relationships.py'), 'implementation_sha256':{name:app.sha256_file(ROOT/name) for name in ('app.py','relationships.py','streaming.py','local_http.py','operations.py','constellation.py','investigations.py','static/app.js','static/constellation.js','static/constellation-worker.js')},
               'benchmark_sha256': app.sha256_file(Path(__file__)), 'target_mib': args.size_mib,
               'acceptance_limits': {'max_rss_mib': args.max_rss_mib, 'max_import_seconds': args.max_import_seconds,
                                     'max_http_seconds': args.max_http_seconds, 'live_probe_timeout_seconds': 3},

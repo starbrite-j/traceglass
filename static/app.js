@@ -74,6 +74,7 @@ async function loadStats() {
   const fileScope=activeDataset&&activeDataset.file_count!==activeDataset.source_count?` · ${activeDataset.file_count-activeDataset.source_count} raw-only file${activeDataset.file_count-activeDataset.source_count===1?'':'s'}`:'';
   const crossScope=t.events_seen_elsewhere?` · ${t.events_seen_elsewhere.toLocaleString()} also retained elsewhere${t.conflicting_events_elsewhere?` · ${t.conflicting_events_elsewhere.toLocaleString()} text conflicts`:''}${t.variant_events_elsewhere?` · ${t.variant_events_elsewhere.toLocaleString()} non-text variants`:''}${t.omitted_events_elsewhere?` · ${t.omitted_events_elsewhere.toLocaleString()} availability variants`:''}`:'';
   $("#datasetScope").textContent=(t.duplicate_event_copies?`${t.messages.toLocaleString()} records · ${t.unique_events.toLocaleString()} unique · ${t.duplicate_event_copies.toLocaleString()} retained copies`:`${t.messages.toLocaleString()} records · no repeated nodes`)+fileScope+crossScope;
+  if(data.import_state&&data.import_state!=='complete')$('#datasetScope').textContent+=' · IMPORT '+data.import_state.toUpperCase()+' · reconciliation unverified';
   if(data.summary_status==='before_current_import')$('#datasetScope').textContent+=' · prior index while import runs';
   $("#sourceCount").textContent=data.sources.length;
   $("#anyMarkerCount").textContent=compactNumber(t.anomalies);
@@ -244,6 +245,7 @@ async function loadJsonSource() {
     $("#jsonSourceStatus").textContent=`${data.source.status==='skipped'?'RAW ONLY':data.source.status.toUpperCase()} · ${fmtBytes(data.source.size_bytes)}`;
     $("#jsonByteRange").textContent=`${data.offset.toLocaleString()}–${data.end_offset.toLocaleString()}${data.total_bytes!=null?` / ${data.total_bytes.toLocaleString()}`:''}`;
     $("#jsonMatchStatus").textContent=data.query?(data.match_count?`${data.match_index+1} / ${data.match_count}${data.match_limit_reached?'+':''}`:'0 / 0'):'NO QUERY';
+    if(data.query&&data.search_scan?.scan_complete===false)$('#jsonMatchStatus').textContent+=' · PARTIAL SCAN ('+data.search_scan.stop_reason+')';
     $("#jsonRawViewer").innerHTML=highlightedLiteral(data.content,data.query);
     const sourceNote=data.source.error?.replace('No supported conversation or chronological records found','Raw source available; no conversation-shaped ledger records found');
     $("#jsonScopeNote").innerHTML=`${escapeHtml(data.scope_note)}${sourceNote?` <code>${escapeHtml(sourceNote)}</code>`:''}`;
