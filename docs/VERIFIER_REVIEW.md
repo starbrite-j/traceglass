@@ -74,7 +74,12 @@ differing timestamp namespaces; mutation/replacement tests also accept Windows'
 OS-level denial of replacing an open file. See the
 [CPython issue](https://github.com/python/cpython/issues/157671). The failed
 [cloud run](https://github.com/starbrite-j/traceglass/actions/runs/42346980819)
-is retained as part of the review evidence.
+is retained as part of the review evidence. A second Windows run exposed a
+busy-socket shutdown issue: closing before consuming request headers could reset
+the connection before delivering 503. The rejection path now drains a bounded
+header and permits a bounded graceful close; the 503 test remains unchanged.
+The [second failed run](https://github.com/starbrite-j/traceglass/actions/runs/42347327129)
+is also retained.
 
 The final local suite passed **110 tests**, including **400 decoder differential
 vectors** and **50 generated graph-oracle cases**. Final workload measurements:
@@ -91,7 +96,14 @@ Basin overview median was 0.515 s; connected neighborhood median was
 0.0021 s (three requests each). Overall process peak RSS through checks was
 244.05 MiB. These are workload measurements, not adversarial memory guarantees.
 
-Current results and exact code/source hashes are in:
+The performance files below pin the build immediately before the Windows-only
+stat/rejection corrections. The normal decoding, storage, and graph algorithms
+are unchanged by those corrections. The complete 2 GiB source was replayed after
+the timestamp correction, verifying its consumed-byte hash, all record counts,
+and all 18 original-node samples; this focused check does not claim another
+SQLite import timing. See the [portable source replay](validation/verifier-portable-source-replay.json).
+
+Current workload measurements and their exact code/source hashes are in:
 
 - [Release 2 GiB workload](validation/verifier-release-2gib.json)
 - [Release 80,000-record connected workload](validation/verifier-release-80k.json)
@@ -165,6 +177,7 @@ python3 -m unittest discover -s tests -v
 python3 scripts/benchmark_relationships.py --workspace data/review-connected --records 80000
 python3 scripts/benchmark_streaming_conversation.py --workspace data/review-conversation --records 11000 --chars 12000
 python3 scripts/benchmark_large_import.py --workspace data/review-large --size-mib 2048 --max-rss-mib 512 --max-import-seconds 180 --max-http-seconds 5
+python3 scripts/verify_source_replay.py --workspace data/review-large --out data/replay-check.json
 ```
 
 ## Remaining production approval gates

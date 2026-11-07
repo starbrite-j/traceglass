@@ -1,5 +1,7 @@
 """Loopback server admission control. This is not remote authentication."""
 import threading
+import socket
+import time
 from http.server import ThreadingHTTPServer as StandardServer
 
 
@@ -19,8 +21,22 @@ class BoundedServer(StandardServer):
     def process_request(self, request, address):
         if not self.connection_slots.acquire(blocking=False):
             try:
-                request.settimeout(1)
+                # Windows may discard a response if unread request bytes remain
+                # when the socket closes. Drain bounded headers before replying.
+                deadline=time.monotonic()+.1
+                header=b''
+                while len(header)<16384 and b'\r\n\r\n' not in header:
+                    remaining=deadline-time.monotonic()
+                    if remaining<=0:break
+                    request.settimeout(remaining)
+                    chunk=request.recv(min(4096,16384-len(header)))
+                    if not chunk:break
+                    header+=chunk
+                request.settimeout(.1)
                 request.sendall(b'HTTP/1.0 503 Service Unavailable\r\nConnection: close\r\nContent-Length: 0\r\nRetry-After: 1\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nX-Frame-Options: DENY\r\n\r\n')
+                request.shutdown(socket.SHUT_WR)
+                request.settimeout(.1)
+                request.recv(16384)
             except OSError:
                 pass
             finally:
