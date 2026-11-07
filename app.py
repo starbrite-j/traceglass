@@ -2362,8 +2362,8 @@ def main(argv: list[str] | None = None) -> int:
     serve=sub.add_parser("serve"); serve.add_argument("--port",type=int,default=PORT)
     imp=sub.add_parser("import"); imp.add_argument("paths",nargs="+")
     sub.add_parser("import-sample")
-    verify=parser.add_parser('verify');verify.add_argument('--sources',action='store_true')
-    backup=parser.add_parser('backup');backup.add_argument('--out',type=Path,required=True)
+    verify=sub.add_parser('verify');verify.add_argument('--sources',action='store_true')
+    backup=sub.add_parser('backup');backup.add_argument('--out',type=Path,required=True)
     args=parser.parse_args(argv)
     if args.command in ('verify','backup'):
         with db(readonly=True) as conn:
@@ -2377,7 +2377,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command in {None,"serve"}:
         port=getattr(args,"port",PORT)
         server=ThreadingHTTPServer((HOST,port),Handler)
-        print(f"Traceglass is running at http://{HOST}:{port}",flush=True)
+        print(f"Traceglass is running at http://{HOST}:{server.server_port}",flush=True)
         try: server.serve_forever()
         except KeyboardInterrupt: pass
         finally: server.server_close()

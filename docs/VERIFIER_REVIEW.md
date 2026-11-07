@@ -79,9 +79,12 @@ busy-socket shutdown issue: closing before consuming request headers could reset
 the connection before delivering 503. The rejection path now drains a bounded
 header and permits a bounded graceful close; the 503 test remains unchanged.
 The [second failed run](https://github.com/starbrite-j/traceglass/actions/runs/42347327129)
-is also retained.
+is also retained. A final real CLI startup check then caught incorrect subcommand
+registration that helper/API tests had missed. Direct help, verification, backup,
+and real server-process startup tests now cover the command entry points; port 0
+also reports its actual bound port.
 
-The final local suite passed **110 tests**, including **400 decoder differential
+The final local suite passed **113 tests**, including **400 decoder differential
 vectors** and **50 generated graph-oracle cases**. Final workload measurements:
 
 | Workload | Import / reconciliation | Process peak RSS through import | Result |
@@ -97,7 +100,7 @@ Basin overview median was 0.515 s; connected neighborhood median was
 244.05 MiB. These are workload measurements, not adversarial memory guarantees.
 
 The performance files below pin the build immediately before the Windows-only
-stat/rejection corrections. The normal decoding, storage, and graph algorithms
+stat/rejection corrections and CLI registration fix. The normal decoding, storage, and graph algorithms
 are unchanged by those corrections. The complete 2 GiB source was replayed after
 the timestamp correction, verifying its consumed-byte hash, all record counts,
 and all 18 original-node samples; this focused check does not claim another

@@ -3,14 +3,14 @@
   "scope": "Full source decoding, consumed-byte SHA-256, stable source signature, counts and original node samples. No new SQLite import or HTTP timing is claimed.",
   "python": "3.14.7",
   "platform": "macOS-15.7.7-arm64-arm-64bit-Mach-O",
-  "seconds": 8.82330958393868,
+  "seconds": 8.880407458054833,
   "source_bytes": 2147490402,
   "source_sha256": "72db37344a05c740a34f2799fdea369d89dea93ee780e80a5d89ef65efeb74dd",
   "records": 165344,
   "conversations": 10334,
   "raw_samples_verified": 18,
   "implementation_sha256": {
-    "app.py": "17ed97560d72e7d8a21040ec3e2e939a5a2fd66724d8bd7d0ce0062e2ae737f7",
+    "app.py": "b4527484cb91d1fef1d9ae6283141d5aec5151b5d295a4136cac4da421c78d76",
     "streaming.py": "a7df68c7cc56ca297579fa7002eedf445b0aa76f7478a12eb8915d617eb7a5e4",
     "scripts/benchmark_large_import.py": "42ae4dcd02bee3757c9a2718050ecc60830cad56894fc37e21e38f4cfd51ebd5"
   },

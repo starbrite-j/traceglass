@@ -330,6 +330,48 @@ except BlockingIOError:sys.exit(23)
             with patch.object(Path,'stat',return_value=path_stat):
                 self.assertEqual(source.verify(),source.hashed.digest.hexdigest())
 
+    def test_command_help_registers_all_subcommands_without_initialization(self):
+        for args in (['--help'],['serve','--help'],['verify','--help'],['backup','--help']):
+            with patch.object(app,'init_db',side_effect=AssertionError('Help initialized the index')),patch('sys.stdout',new_callable=io.StringIO):
+                with self.assertRaises(SystemExit) as result:app.main(args)
+                self.assertEqual(result.exception.code,0)
+
+    def test_verification_and_backup_commands_use_readonly_existing_index(self):
+        self.load();destination=self.folder/'cli-backup.sqlite3'
+        with patch.object(app,'init_db',side_effect=AssertionError('Read-only command initialized the index')):
+            with patch('sys.stdout',new_callable=io.StringIO) as output:
+                self.assertEqual(app.main(['verify','--sources']),0)
+                self.assertEqual(json.loads(output.getvalue())['status'],'passed')
+            with patch('sys.stdout',new_callable=io.StringIO) as output:
+                self.assertEqual(app.main(['backup','--out',str(destination)]),0)
+                self.assertEqual(json.loads(output.getvalue())['sha256'],app.sha256_file(destination))
+
+    def test_real_serve_command_starts_and_reports_actual_bound_port(self):
+        import queue
+        code="""import sys
+from pathlib import Path
+import app
+app.DATA=Path(sys.argv[1]);app.DB_PATH=app.DATA/'index.sqlite3'
+app.main(['serve','--port','0'])
+"""
+        process=subprocess.Popen([sys.executable,'-u','-c',code,str(app.DATA)],cwd=app.ROOT,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+        def stop():
+            if process.poll() is None:process.terminate()
+            try:process.wait(timeout=5)
+            except subprocess.TimeoutExpired:process.kill();process.wait(timeout=5)
+            process.stdout.close();process.stderr.close()
+        self.addCleanup(stop)
+        ready=queue.Queue()
+        threading.Thread(target=lambda:ready.put(process.stdout.readline()),daemon=True).start()
+        line=ready.get(timeout=15)
+        self.assertIn('Traceglass is running at http://127.0.0.1:',line)
+        port=int(line.strip().rsplit(':',1)[1]);self.assertGreater(port,0)
+        client=http.client.HTTPConnection('127.0.0.1',port,timeout=5)
+        try:
+            client.request('GET','/api/health');response=client.getresponse()
+            self.assertEqual(response.status,200);self.assertTrue(json.loads(response.read())['ok'])
+        finally:client.close()
+
     def test_wrapper_mapping_memory_budget_is_shared_and_spills(self):
         decoder=json.JSONDecoder(object_pairs_hook=app.unique_json_object)
         records=[]
