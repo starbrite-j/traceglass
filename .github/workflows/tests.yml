@@ -31,3 +31,6 @@ jobs:
       - name: Exercise real import and HTTP APIs with 64 MiB of invented data
         if: matrix.os == 'ubuntu-latest' && matrix.python == '3.14'
         run: python scripts/benchmark_large_import.py --workspace data/ci-64mib --size-mib 64
+      - name: Trace cross-chat references and siblings through 80,000 invented records
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.14'
+        run: python scripts/benchmark_relationships.py --workspace data/ci-connected-80k --records 80000

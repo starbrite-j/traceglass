@@ -1,0 +1,11 @@
+{
+  "status": "failed",
+  "records": 80000,
+  "source_bytes": 38180881,
+  "source_sha256": "11f92e4f3cf75f724e4c8ee1313d4568206ca0f0242af5237b55a1a06798d6f2",
+  "import_seconds": 12.487001666100696,
+  "app_sha256": "88f4e48ee1621b45945db14ff572ad8305c5efa358352837d335e42447280b86",
+  "relationships_sha256": "445235b5805e2ed551ffff3df08cea32010c30d5137aef7adf3d1b307c6f3b9d",
+  "checks": [],
+  "error": "TimeoutError: timed out"
+}

@@ -171,6 +171,10 @@ def validate(port, manifest, dataset_id, max_http_seconds=None):
             lambda d: d['total'] == (manifest['records'] + 13) // 17)
     measure('atlas', route('/api/atlas', dataset_id=dataset_id),
             lambda d: d['total'] == manifest['conversations'] and 0 < len(d['items']) <= 60)
+    measure('basin_overview', route('/api/basins', dataset_id=dataset_id),
+            lambda d: d['total'] == manifest['conversations'] and 0 < len(d['nodes']) <= 300)
+    measure('connected_neighborhood', route('/api/neighborhood', pk=pk,limit=100,depth=4),
+            lambda d: 0 < len(d['nodes']) <= 100 and all(n['source_id']==sid for n in d['nodes']))
     measure('constellation', route('/api/constellation', source_id=sid,
             conversation_id=sample['conversation_id'], focus=sample['node_id'], limit=50),
             lambda d: len(d['nodes']) == min(50, manifest['nodes_per_conversation']) and d['total_active'] == manifest['nodes_per_conversation'])
@@ -210,6 +214,7 @@ def main():
     report = {'started_utc': app.utc_now(), 'status': 'running', 'platform': platform.platform(),
               'python': platform.python_version(), 'sqlite': sqlite3.sqlite_version,
               'cpu': platform.processor(), 'app_sha256': app.sha256_file(ROOT / 'app.py'),
+              'relationships_sha256': app.sha256_file(ROOT / 'relationships.py'),
               'benchmark_sha256': app.sha256_file(Path(__file__)), 'target_mib': args.size_mib,
               'acceptance_limits': {'max_rss_mib': args.max_rss_mib, 'max_import_seconds': args.max_import_seconds,
                                     'max_http_seconds': args.max_http_seconds, 'live_probe_timeout_seconds': 3},

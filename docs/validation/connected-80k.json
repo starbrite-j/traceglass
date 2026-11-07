@@ -1,0 +1,42 @@
+{
+  "started_utc": "2026-11-07T05:20:32.446295Z",
+  "platform": "macOS-15.7.7-arm64-arm-64bit-Mach-O",
+  "python": "3.14.7",
+  "sqlite": "3.53.4",
+  "benchmark_sha256": "cfafdc139204a85f85af5fc05d35d7bda807eb608cad5e96ac9763e7156ba28a",
+  "status": "passed",
+  "records": 80000,
+  "source_bytes": 38180881,
+  "source_sha256": "11f92e4f3cf75f724e4c8ee1313d4568206ca0f0242af5237b55a1a06798d6f2",
+  "import_seconds": 13.020227374974638,
+  "app_sha256": "4bc0061c6aac16e5e76fc8f879f0ccc43d303778e07b5c7f68c9766c4d58a2f8",
+  "relationships_sha256": "48cb07db3cb103b96520f3309f64dbb2209650f78146c8a7afe3eb6465dee5ae",
+  "checks": [
+    {
+      "name": "basins",
+      "seconds": 0.5363271250389516,
+      "response_bytes": 4961,
+      "nodes": 12,
+      "edges": 18,
+      "truncated": false
+    },
+    {
+      "name": "neighborhood_300",
+      "seconds": 0.018874166999012232,
+      "response_bytes": 240877,
+      "nodes": 83,
+      "edges": 182,
+      "truncated": true
+    },
+    {
+      "name": "neighborhood_900",
+      "seconds": 0.07346837501972914,
+      "response_bytes": 769179,
+      "nodes": 366,
+      "edges": 790,
+      "truncated": true
+    }
+  ],
+  "source_unchanged": true,
+  "peak_rss_bytes": 179765248
+}

@@ -15,8 +15,8 @@ not by itself establish a runtime failure or interference.
 ## Run locally
 
 Requires Python 3.10+ with SQLite 3.35+ and its FTS5/JSON support. No pip packages,
-Node build, API key, or paid service is required. The release was tested locally on
-macOS with Python 3.14; other platforms need further validation.
+Node build, API key, or paid service is required. Automated regressions run on Linux, macOS, and Windows; local large-data
+measurements use macOS with Python 3.14.
 
 1. Download this repository with **Code → Download ZIP**, then extract it (or clone it).
 2. Open a terminal in the extracted project folder.
@@ -75,9 +75,15 @@ reimport is deliberately refused in this preview to protect existing provenance.
 
 - **Ledger:** filter roles and structural markers, search text/IDs/metadata, type a
   page number, and open any record for its full fields.
-- **Lineage:** inspect branches, expand a bounded graph, trace ancestors in batches,
-  and compare recorded outer `parent` with `message.metadata.parent_id` and other
-  export copies. Unloaded is not the same as missing.
+- **Lineage:** start with connected conversation basins, then open a basin or
+  evidence bridge to trace ancestors, siblings, stopped branches, and cross-chat
+  references in both directions. Separate colors and line patterns identify outer
+  `parent`, declared `children`, metadata `parent_id`, and shared message IDs.
+  Select another export explicitly to compare copies; they never merge. Failed
+  records and exported thinking have distinct shapes. Click a connection for its
+  literal field/ID, or open the raw record. Expand the window, highlight a parent
+  path, use FOCUS VIEW, and export the displayed evidence. Unloaded is not missing.
+  See [connection rules and validation](docs/CONNECTED_LINEAGE_VALIDATION.md).
 - **JSON:** read bounded windows of the original serialized source and search the
   selected file. This is separate from indexed ledger search.
 - **Investigate:** preserve a question, pin source records, run explicit inspection
@@ -127,9 +133,12 @@ The synthetic demo is the only intended public sample data.
   after indexing, raw view and indexed detail may disagree.
 - Raw windows are at most 256 KiB; raw search retains up to 5,000 matches and may
   scan the whole file. Gzip seeks can require decompression from the beginning.
-- Graph and ancestor walks are bounded. Large conversations still require some
-  whole-conversation metadata work. Children-only edges, unusual export schemas,
-  and cross-conversation references need careful source inspection.
+- Graph and ancestor walks are bounded. The connected graph reports clipped
+  windows, ambiguous candidates, unresolved references, and work limits explicitly.
+  Its basin overview is a bounded summary; open a record for exact reference
+  inspection. A basin groups a conversation occurrence, not a computed semantic
+  attractor or a measured memory influence. Legacy graph APIs retain their
+  conversation scope. [Exact bounds](docs/CONNECTED_LINEAGE_VALIDATION.md#bounds-and-limits).
 - Annotations require **SAVE**. Unsaved drafts are not durable. Notebook findings
   are investigator assessments, not automatically verified facts.
 
@@ -138,16 +147,18 @@ and move `data/` to a safe backup location; restarting creates a new local datab
 
 ## Measured large-data validation
 
-A real 2.00 GiB synthetic JSON import with 165,344 records completed in 87.1 seconds
-with approximately 234 MiB Python process peak RSS on the measured Mac. Search,
-pagination, metadata filters, raw-source access, and graph navigation were checked
-through the actual HTTP API. Large individual conversations use more memory; a
-separate 143 MB conversation test is included in the report.
+With the connected graph indexes enabled, a real 2.00 GiB synthetic JSON import
+with 165,344 records completed in **125.7 seconds**, using **225.8 MiB process peak
+RSS through import** on the measured Mac. The basin overview took 0.49 seconds
+(median of three HTTP requests). A separate 80,000-record branching workload
+verified cross-chat references, shared IDs, failed records, and exported thinking.
 
-See [the validation report](docs/LARGE_DATA_VALIDATION.md) for exact inputs,
-acceptance budgets, machine details, measurements, retained failed runs, and
-commands to reproduce the tests. These results describe the tested workloads,
-not every export up to the file picker's 20 GiB limit.
+See [connected-graph validation](docs/CONNECTED_LINEAGE_VALIDATION.md) for current
+measurements, source/code hashes, failed iterations, limits, and reproduction
+commands. The [earlier ingestion report](docs/LARGE_DATA_VALIDATION.md) retains
+browser-upload evidence and the large single-conversation memory test. Those
+measurements describe their pinned versions and workloads; they do not establish
+support for every export up to the file picker's 20 GiB limit.
 
 During an import, progress remains active through reconciliation. Statistics show
 an explicitly labeled snapshot of the prior index and refresh when the import

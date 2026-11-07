@@ -1,5 +1,9 @@
 # Large-data validation
 
+This report records the earlier ingestion build. The connected-graph build adds
+indexes and has a separate [current validation report](CONNECTED_LINEAGE_VALIDATION.md).
+Timings and test counts below refer to the versions pinned in these measurements.
+
 Traceglass was exercised against a **2,147,490,402-byte synthetic JSON export**
 containing **165,344 records in 10,334 conversations** on November 6, 2026. The final
 run passed the configured acceptance budgets and all correctness checks. The

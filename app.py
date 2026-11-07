@@ -20,6 +20,7 @@ import traceback
 import urllib.parse
 import investigations
 import constellation
+import relationships
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from http import HTTPStatus
@@ -238,7 +239,7 @@ CREATE TABLE IF NOT EXISTS annotations (
 CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
   content_text, title, node_id UNINDEXED, conversation_id UNINDEXED
 );
-"""
+""" + relationships.SCHEMA
 
 
 def init_db() -> None:
@@ -248,6 +249,7 @@ def init_db() -> None:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.executescript(SCHEMA)
         conn.executescript(investigations.SCHEMA)
+        relationships.backfill(conn)
         source_columns = {row[1] for row in conn.execute("PRAGMA table_info(sources)")}
         if "dataset_id" not in source_columns:
             conn.execute("ALTER TABLE sources ADD COLUMN dataset_id INTEGER REFERENCES datasets(id) ON DELETE SET NULL")
@@ -319,25 +321,29 @@ def init_db() -> None:
 
 def repair_context_search(conn: sqlite3.Connection) -> int:
     """Repair derived search/display text only; preserve raw records and canonical hashes."""
-    rows = conn.execute("""
+    cursor = conn.execute("""
         SELECT m.pk,m.raw_json,m.content_text,m.node_id,m.conversation_id,c.title
         FROM messages m LEFT JOIN conversations c
           ON c.source_id=m.source_id AND c.conversation_id=m.conversation_id
-        WHERE m.content_type='user_editable_context'
-    """).fetchall()
+        WHERE m.content_type IN ('user_editable_context','thoughts','reasoning_recap','tether_browsing_display')
+    """)
     changed = 0
-    for row in rows:
-        raw = json.loads(row['raw_json'])
-        content = (raw.get('message') or {}).get('content') or {}
-        text = flatten_content(content)
-        if text == (row['content_text'] or ''):
-            continue
-        conn.execute('UPDATE messages SET content_text=?,content_hash=? WHERE pk=?',
-                     (text, hashlib.sha256(text.encode('utf-8', 'replace')).hexdigest(), row['pk']))
-        conn.execute('DELETE FROM messages_fts WHERE rowid=?', (row['pk'],))
-        conn.execute('INSERT INTO messages_fts(rowid,content_text,title,node_id,conversation_id) VALUES (?,?,?,?,?)',
-                     (row['pk'],text,row['title'] or '',row['node_id'],row['conversation_id']))
-        changed += 1
+    while True:
+        rows = cursor.fetchmany(100)
+        if not rows:
+            break
+        for row in rows:
+            raw = json.loads(row['raw_json'])
+            content = (raw.get('message') or {}).get('content') or {}
+            text = flatten_content(content)
+            if text == (row['content_text'] or ''):
+                continue
+            conn.execute('UPDATE messages SET content_text=?,content_hash=? WHERE pk=?',
+                         (text, hashlib.sha256(text.encode('utf-8', 'replace')).hexdigest(), row['pk']))
+            conn.execute('DELETE FROM messages_fts WHERE rowid=?', (row['pk'],))
+            conn.execute('INSERT INTO messages_fts(rowid,content_text,title,node_id,conversation_id) VALUES (?,?,?,?,?)',
+                         (row['pk'],text,row['title'] or '',row['node_id'],row['conversation_id']))
+            changed += 1
     return changed
 
 
@@ -430,6 +436,18 @@ def flatten_content(content: Any) -> str:
         return '\n\n'.join(f'{key}:\n{content[key]}'
                            for key in ('user_profile', 'user_instructions')
                            if isinstance(content.get(key), str) and content[key])
+    if content.get('content_type') == 'thoughts' and isinstance(content.get('thoughts'), list):
+        out = []
+        for index, thought in enumerate(content['thoughts']):
+            if isinstance(thought, dict):
+                for field in ('summary', 'content'):
+                    if isinstance(thought.get(field), str) and thought[field]:
+                        out.append(f'exported thoughts[{index}].{field}:\n{thought[field]}')
+        return '\n\n'.join(out)
+    if content.get('content_type') in ('reasoning_recap', 'tether_browsing_display'):
+        fields = ('content',) if content['content_type'] == 'reasoning_recap' else ('result', 'summary')
+        return '\n\n'.join(f'exported {content["content_type"]}.{field}:\n{content[field]}'
+                           for field in fields if isinstance(content.get(field), str) and content[field])
     parts = content.get("parts")
     if isinstance(parts, list):
         out: list[str] = []
@@ -2050,6 +2068,14 @@ class Handler(BaseHTTPRequestHandler):
                 if parsed.path == "/api/stats": self.send_json(api_stats(conn,q)); return
                 if parsed.path == "/api/atlas": self.send_json(constellation.atlas(conn,q)); return
                 if parsed.path == "/api/constellation": self.send_json(constellation.graph(conn,q)); return
+                if parsed.path in ("/api/basins","/api/neighborhood"):
+                    try:
+                        function=relationships.basins if parsed.path=="/api/basins" else relationships.neighborhood
+                        self.send_json(relationships.read_snapshot(conn,function,q))
+                    except sqlite3.OperationalError as exc:
+                        if 'interrupted' not in str(exc).lower(): raise
+                        self.send_json({'error':'Graph query exceeded its 10 second SQLite budget; narrow the scope and retry.'},503)
+                    return
                 if parsed.path == "/api/parent-trace":
                     sid=constellation.integer(q,'source_id',0,1,2**31)
                     limit=constellation.integer(q,'limit',500,1,1000)

@@ -58,7 +58,7 @@ class JsonIngestionTests(unittest.TestCase):
 
     def assert_empty_index(self):
         with app.db() as conn:
-            for table in ('sources', 'conversations', 'messages', 'messages_fts', 'edges'):
+            for table in ('sources', 'conversations', 'messages', 'messages_fts', 'edges', 'lineage_refs'):
                 self.assertEqual(conn.execute(f'SELECT count(*) FROM {table}').fetchone()[0], 0, table)
 
     def test_directory_discovers_jsonl_gzip_and_mixed_case_extensions(self):
@@ -142,6 +142,7 @@ class JsonIngestionTests(unittest.TestCase):
         for index in range(1001):
             conversation = self.conversation()
             conversation['id'] = f'synthetic-new-{index}'
+            conversation['mapping']['synthetic-node']['children'] = ['invented-missing-child']
             records.append(json.dumps(conversation))
         malformed = self.source('[' + ','.join(records) + ',BROKEN]', 'malformed.json')
         with self.assertRaises(ValueError):
@@ -152,6 +153,7 @@ class JsonIngestionTests(unittest.TestCase):
             self.assertEqual(conn.execute('SELECT count(*) FROM conversations').fetchone()[0], 1)
             self.assertEqual(conn.execute('SELECT count(*) FROM messages').fetchone()[0], 1)
             self.assertEqual(conn.execute('SELECT count(*) FROM messages_fts').fetchone()[0], 1)
+            self.assertEqual(conn.execute('SELECT count(*) FROM lineage_refs').fetchone()[0], 0)
             source = conn.execute('SELECT path,sha256 FROM sources').fetchone()
             self.assertEqual(source['path'], str(original.resolve()))
             self.assertEqual(source['sha256'], app.sha256_file(original))
