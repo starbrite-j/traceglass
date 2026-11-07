@@ -82,9 +82,18 @@ The [second failed run](https://github.com/starbrite-j/traceglass/actions/runs/4
 is also retained. A final real CLI startup check then caught incorrect subcommand
 registration that helper/API tests had missed. Direct help, verification, backup,
 and real server-process startup tests now cover the command entry points; port 0
-also reports its actual bound port.
+also reports its actual bound port. The first hosted macOS startup smoke exceeded
+its initial 15-second readiness wait; the smoke now has a bounded 45-second startup
+window and captures a child traceback if startup stalls. This is a test deadline,
+not a production startup-time guarantee. The
+[timeout run](https://github.com/starbrite-j/traceglass/actions/runs/42348022971)
+remains available. Inspection also found that Python's default HTTP server bind
+performs reverse DNS before readiness. Numeric-loopback startup now bypasses that
+unnecessary lookup, with a regression that makes any reverse-DNS call fail. This
+removes a startup dependency; the first timeout did not capture enough evidence
+to establish its cause.
 
-The final local suite passed **113 tests**, including **400 decoder differential
+The final local suite passed **114 tests**, including **400 decoder differential
 vectors** and **50 generated graph-oracle cases**. Final workload measurements:
 
 | Workload | Import / reconciliation | Process peak RSS through import | Result |
@@ -100,7 +109,7 @@ Basin overview median was 0.515 s; connected neighborhood median was
 244.05 MiB. These are workload measurements, not adversarial memory guarantees.
 
 The performance files below pin the build immediately before the Windows-only
-stat/rejection corrections and CLI registration fix. The normal decoding, storage, and graph algorithms
+stat/rejection corrections, CLI registration fix, and numeric-loopback startup correction. The normal decoding, storage, and graph algorithms
 are unchanged by those corrections. The complete 2 GiB source was replayed after
 the timestamp correction, verifying its consumed-byte hash, all record counts,
 and all 18 original-node samples; this focused check does not claim another

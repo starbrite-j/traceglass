@@ -2,6 +2,7 @@
 import threading
 import socket
 import time
+from socketserver import TCPServer
 from http.server import ThreadingHTTPServer as StandardServer
 
 
@@ -10,6 +11,14 @@ class BoundedServer(StandardServer):
     max_queries = 4
     connection_timeout = 15
     request_queue_size = 16
+    allow_reuse_port = False
+
+    def server_bind(self):
+        # HTTPServer's default performs reverse DNS before startup can become
+        # ready. Numeric loopback binding needs no external name resolution.
+        TCPServer.server_bind(self)
+        self.server_name = 'localhost'
+        self.server_port = self.server_address[1]
 
     def __init__(self, *args, **kwargs):
         if args and args[0][0] not in ('127.0.0.1','localhost'):

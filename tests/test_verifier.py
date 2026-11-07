@@ -348,7 +348,8 @@ except BlockingIOError:sys.exit(23)
 
     def test_real_serve_command_starts_and_reports_actual_bound_port(self):
         import queue
-        code="""import sys
+        code="""import sys,faulthandler
+faulthandler.dump_traceback_later(20)
 from pathlib import Path
 import app
 app.DATA=Path(sys.argv[1]);app.DB_PATH=app.DATA/'index.sqlite3'
@@ -363,7 +364,14 @@ app.main(['serve','--port','0'])
         self.addCleanup(stop)
         ready=queue.Queue()
         threading.Thread(target=lambda:ready.put(process.stdout.readline()),daemon=True).start()
-        line=ready.get(timeout=15)
+        try:line=ready.get(timeout=45)
+        except queue.Empty:
+            process.terminate()
+            try:process.wait(timeout=5)
+            except subprocess.TimeoutExpired:process.kill();process.wait(timeout=5)
+            self.fail('CLI did not become ready within 45 seconds. Child diagnostics:\n'+process.stderr.read())
+        if not line and process.poll() is not None:
+            self.fail('CLI exited before readiness:\n'+process.stderr.read())
         self.assertIn('Traceglass is running at http://127.0.0.1:',line)
         port=int(line.strip().rsplit(':',1)[1]);self.assertGreater(port,0)
         client=http.client.HTTPConnection('127.0.0.1',port,timeout=5)
@@ -371,6 +379,11 @@ app.main(['serve','--port','0'])
             client.request('GET','/api/health');response=client.getresponse()
             self.assertEqual(response.status,200);self.assertTrue(json.loads(response.read())['ok'])
         finally:client.close()
+
+    def test_loopback_server_startup_does_not_require_reverse_dns(self):
+        with patch('socket.getfqdn',side_effect=AssertionError('Reverse DNS during local server startup')):
+            server=self.server()
+        self.assertEqual(self.request(server,'/api/health')[0],200)
 
     def test_wrapper_mapping_memory_budget_is_shared_and_spills(self):
         decoder=json.JSONDecoder(object_pairs_hook=app.unique_json_object)
