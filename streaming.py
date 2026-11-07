@@ -115,6 +115,9 @@ class Source:
             if not stat.S_ISREG(self.initial.st_mode):
                 raise ValueError('A regular source file is required')
             if self.initial.st_size>MAX_SOURCE_BYTES:raise ValueError("Source exceeds 20 GiB byte budget")
+            self.initial_path=self.path.stat()
+            if not os.path.samestat(self.initial,self.initial_path):
+                raise ValueError('Source changed while opening the file')
             self.raw = raw
             self.hashed = DigestReader(raw,self.deadline)
             binary = self.stack.enter_context(io.BufferedReader(self.hashed))
@@ -136,7 +139,13 @@ class Source:
             raise ValueError('Source was not consumed completely')
         def signature(s):
             return s.st_dev, s.st_ino, s.st_size, s.st_mtime_ns, s.st_ctime_ns
-        if signature(self.initial) != signature(os.fstat(self.raw.fileno())) or signature(self.initial) != signature(self.path.stat()):
+        # Windows Python may give fstat change-time and stat creation-time
+        # under the same st_ctime_ns name. Compare each API with itself.
+        current_fd=os.fstat(self.raw.fileno())
+        current_path=self.path.stat()
+        if (signature(self.initial)!=signature(current_fd) or
+                signature(self.initial_path)!=signature(current_path) or
+                not os.path.samestat(current_fd,current_path)):
             raise ValueError('Source changed during import; the file transaction was rolled back')
         return self.hashed.digest.hexdigest()
 

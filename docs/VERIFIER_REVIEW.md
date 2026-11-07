@@ -66,7 +66,17 @@ mutation, spool failure, cache invalidation, corruption detection, and backup
 restoration. All fixtures are invented. No private exports or indexes belong in
 the repository or CI artifacts.
 
-The final local suite passed **109 tests**, including **400 decoder differential
+The first cloud verifier run exposed a Windows portability failure in the source
+change guard: Python's path `stat` and descriptor `fstat` can give different
+meanings to `st_ctime_ns` on Windows. The guard now compares each API with its own
+initial snapshot and separately checks file identity. A regression models the
+differing timestamp namespaces; mutation/replacement tests also accept Windows'
+OS-level denial of replacing an open file. See the
+[CPython issue](https://github.com/python/cpython/issues/157671). The failed
+[cloud run](https://github.com/starbrite-j/traceglass/actions/runs/42346980819)
+is retained as part of the review evidence.
+
+The final local suite passed **110 tests**, including **400 decoder differential
 vectors** and **50 generated graph-oracle cases**. Final workload measurements:
 
 | Workload | Import / reconciliation | Process peak RSS through import | Result |

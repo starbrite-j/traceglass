@@ -79,7 +79,9 @@ class VerifierTests(unittest.TestCase):
                     else:self.source.write_text('[]')
                 return result
             with patch.object(app,'insert_message',side_effect=mutate):
-                with self.assertRaisesRegex(ValueError,'Source changed'):app.import_paths([self.source])
+                with self.assertRaises((ValueError,PermissionError)) as caught:app.import_paths([self.source])
+                if isinstance(caught.exception,PermissionError):self.assertEqual(os.name,'nt')
+                else:self.assertIn('Source changed',str(caught.exception))
             self.empty()
 
     def test_large_mapping_spills_and_preserves_metadata_after_mapping(self):
@@ -314,6 +316,19 @@ except BlockingIOError:sys.exit(23)
         self.empty()
         reader=streaming.DigestReader(io.BytesIO(b'invented bytes'),-1)
         with self.assertRaisesRegex(ValueError,'elapsed-time'):reader.readinto(bytearray(4))
+
+    def test_stat_and_fstat_timestamp_namespaces_are_compared_separately(self):
+        from types import SimpleNamespace
+        self.source.write_text(json.dumps([self.record]))
+        decoder=json.JSONDecoder(object_pairs_hook=app.unique_json_object)
+        with streaming.Source(self.source,decoder) as source:
+            list(source.values())
+            original=source.initial_path
+            path_stat=SimpleNamespace(**{k:getattr(original,k) for k in ('st_dev','st_ino','st_size','st_mtime_ns','st_ctime_ns')})
+            path_stat.st_ctime_ns+=123456
+            source.initial_path=path_stat
+            with patch.object(Path,'stat',return_value=path_stat):
+                self.assertEqual(source.verify(),source.hashed.digest.hexdigest())
 
     def test_wrapper_mapping_memory_budget_is_shared_and_spills(self):
         decoder=json.JSONDecoder(object_pairs_hook=app.unique_json_object)
