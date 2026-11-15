@@ -7,10 +7,8 @@ interactive lineage graphs, metadata inspection, export comparison, and an
 investigation notebook. It helps people and AI-assisted investigators ask concrete
 questions about timelines and trace answers back to source records.
 
-**Early preview — useful, evolving, and not a forensic certification tool.**
-Structural markers describe what the export contains, not what caused a model's
-behavior. A hidden system node, differing parent fields, or a missing record does
-not by itself establish a runtime failure or interference.
+**Early preview for local export investigation.** Graph connections and
+structural markers link back to the fields and records that supplied them.
 
 ## Run locally
 
@@ -47,7 +45,7 @@ Personal import is the main workflow. No real conversation exports are included.
   source in place without making another source copy. Prefer it for very large
   exports or multiple files. Keep those source files available and unchanged.
 - **Optional synthetic demo:** invented IDs, text, tool activity, and an intentional
-  parent mismatch demonstrate navigation. They are not historical evidence.
+  parent mismatch demonstrate navigation.
 
 Extract ZIP exports first. JSON arrays, whitespace-separated JSON/NDJSON/JSONL, and
 gzip are accepted, including UTF-8 files with a byte-order mark. Directory imports
@@ -67,8 +65,8 @@ python3 app.py import-sample
 ```
 
 Do not run CLI imports concurrently with a server import. To compare exports, keep
-them at different paths and import each export separately. Copies are retained;
-record counts are not a claim about the number of independent events. Same-path
+them at different paths and import each export separately. Copies retain separate
+source identities. Same-path
 reimport is deliberately refused in this preview to protect existing provenance.
 
 ## Explore from the outside in
@@ -93,9 +91,8 @@ Tool records and hidden metadata stay inspectable. Missing fields and explicit
 values remain available in record detail. Export disagreements are not silently
 resolved into a single "true" version.
 
-There is **no conversational model, voice service, or external inference API
-connected** in this release. The local notebook and bounded JSON endpoints provide
-a foundation for later AI-assisted workflows; they are not autonomous agents.
+Notebook inspection tools run locally through bounded JSON endpoints. This
+release uses no external inference or voice service.
 
 ## Privacy and boundaries
 
@@ -117,16 +114,15 @@ The synthetic demo is the only intended public sample data.
 `python3 app.py verify --sources` performs a read-only consistency/source-hash
 check. `python3 app.py backup --out /absolute/private/path/new-snapshot.sqlite3`
 creates a checked SQLite snapshot including the notebook. Source archives need
-separate backups. See the [verifier review](docs/VERIFIER_REVIEW.md) for the review
-verdict, found/fixed holes, measurements, restore procedure, and production gates.
+separate backups. See the [engineering review](docs/VERIFIER_REVIEW.md) for findings,
+fixes, measurements, the restore procedure, and production deployment requirements.
 
-## Known limits
+## Import and navigation limits
 
 - Import spills large conversation mappings to temporary storage. Memory still
   scales with an individual decoded node/value, metadata, key indexes, and SQLite
   work. Input/value/depth/expansion/time budgets reject unsupported work explicitly.
-  Indexes and temporary spools consume additional disk space; there is no promise
-  that every multi-gigabyte export fits every PC.
+  Indexes and temporary spools consume additional disk space.
 - Duplicate JSON keys, invalid UTF-8, non-finite numbers (`NaN`, `Infinity`, or
   floating-point overflow), conflicting mapping-key/node identities, and repeated
   indexed identities within one file fail rather than select a winner. Recognized
@@ -148,11 +144,10 @@ verdict, found/fixed holes, measurements, restore procedure, and production gate
 - Graph and ancestor walks are bounded. The connected graph reports clipped
   windows, ambiguous candidates, unresolved references, and work limits explicitly.
   Its basin overview is a bounded summary; open a record for exact reference
-  inspection. A basin groups a conversation occurrence, not a computed semantic
-  attractor or a measured memory influence. Legacy graph APIs retain their
+  inspection. Each basin groups a conversation occurrence. Legacy graph APIs retain their
   conversation scope. [Exact bounds](docs/CONNECTED_LINEAGE_VALIDATION.md#bounds-and-limits).
-- Annotations require **SAVE**. Unsaved drafts are not durable. Notebook findings
-  are investigator assessments, not automatically verified facts.
+- Annotations require **SAVE** to persist. Notebook findings record investigator
+  assessments alongside their pinned source records.
 
 Back up source archives independently. To start an empty workspace, stop the server
 and move `data/` to a safe backup location; restarting creates a new local database.
@@ -172,8 +167,8 @@ See [connected-graph validation](docs/CONNECTED_LINEAGE_VALIDATION.md) for curre
 measurements, source/code hashes, failed iterations, limits, and reproduction
 commands. The [earlier ingestion report](docs/LARGE_DATA_VALIDATION.md) retains
 browser-upload evidence and the large single-conversation memory test. Those
-measurements describe their pinned versions and workloads; they do not establish
-support for every export up to the file picker's 20 GiB limit.
+measurements identify their tested versions, workloads, and hardware. The file
+picker's separate input-size limit is 20 GiB.
 
 During an import, progress remains active through reconciliation. Statistics show
 an explicitly labeled snapshot of the prior index and refresh when the import

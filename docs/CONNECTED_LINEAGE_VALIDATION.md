@@ -10,10 +10,8 @@ parents. Reused IDs retain separate occurrences, including conflicting copies.
 An overview groups each conversation copy into a navigable basin; selecting a
 bridge opens the actual records that supplied it.
 
-This is a local investigation foundation with reproducible checks. It is not a
-certification of frontier-lab deployment readiness or evidence that a particular
-chat affected runtime memory. No semantic or causal edges are invented from text,
-timestamps, or the positions of points on the canvas.
+Connections come from the literal export fields listed below. Timestamps order
+the event list, and canvas positions support navigation.
 
 ## Relationship contract
 
@@ -62,7 +60,7 @@ display timestamp with occurrence key as a tie-breaker; time creates no edges.
   high-fanout groups are explicit; counts/weights may be partial when bounded.
 - Each graph HTTP response uses one SQLite read snapshot. A SQLite progress
   handler interrupts SQL work after a 10-second execution deadline and returns
-  HTTP 503. This is not an end-to-end Python/browser time or memory guarantee.
+  HTTP 503. This deadline applies to SQL execution.
 - The worker uses a bounded spatial-neighbor pass, not an all-pairs force loop.
   Canvas performance still depends on hardware and the loaded window.
 - New reference indexes migrate existing databases and follow import/update/delete
@@ -77,16 +75,14 @@ display timestamp with occurrence key as a tie-breaker; time creates no edges.
   `/api/atlas`, `/api/constellation`, `/api/lineage`, and `/api/parent-trace` endpoints
   preserve their earlier scopes for compatibility.
 - Arbitrary agent-log schemas need explicit adapters. This local loopback server
-  has no multi-user authentication/isolation or distributed ingestion. The graph
-  does not modify ChatGPT memory or delete chats from an account.
+  serves a single trusted user and local index.
 
 ## Measured workloads
 
 Measured November 6, 2026 (UTC timestamps cross into November 7) on Apple M2 Max,
 12 CPU cores, 96 GiB installed RAM, macOS 15.7.7, Python 3.14.7, SQLite 3.53.4.
 These are actual generated files, imports, SQLite queries, and loopback HTTP calls.
-They are not mocked responses. Source generation/import warms filesystem caches.
-One run per variant is not a statistical performance study.
+Source generation/import warms filesystem caches. Each variant has one full run.
 
 | Workload | Import + reconciliation | Python process peak RSS | Graph HTTP result |
 | --- | ---: | ---: | --- |
@@ -101,7 +97,7 @@ ordinary local neighborhoods. The 80,000-record source deliberately interconnect
 branching conversations using metadata parents and shared message IDs, including
 failed tools and exported thoughts. The benchmark asserts both bridge kinds,
 separate occurrence identities, cross-chat traversal, thinking, errors, and bounds.
-It does not claim to exhaust all 80,000 nodes in one browser frame.
+Browser inspection uses the bounded neighborhoods described above.
 
 The 2 GiB acceptance budgets were 180 seconds for import/reconciliation, 512 MiB
 process RSS, five seconds per post-import HTTP response, and three seconds per

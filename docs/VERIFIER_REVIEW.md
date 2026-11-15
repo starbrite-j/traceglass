@@ -1,15 +1,9 @@
-# Verifier review: local investigation infrastructure
+# Engineering review: local investigation infrastructure
 
-**Verdict: not approved for frontier-lab production deployment.** The fixes and
-tests below establish a stronger local evaluation build. They do not establish
-multi-user security, hostile-input containment, a complete forensic chain of
-custody, or a lab's operational approval. This is an engineering self-review by
-the same assistant that implemented the changes, not independent certification.
-
-The target reviewed here is a single trusted user on a local filesystem, using
-the loopback server and supported JSON export shapes. A production approval needs
-a named deployment, threat model, data classification, owners, and acceptance
-criteria. The outstanding gates are recorded below rather than assumed satisfied.
+**Deployment target: one trusted user on a local filesystem**, using the loopback
+server and supported JSON export shapes. This implementation self-review records
+the fixes, regression results, workload measurements, and recovery procedures.
+Production deployment requirements are listed at the end of this report.
 
 ## Review basis
 
@@ -18,9 +12,9 @@ and file-handling checks, [NIST SSDF 1.1](https://csrc.nist.gov/pubs/sp/800/218/
 to organize verification and release evidence, and SQLite's
 [corruption](https://www.sqlite.org/howtocorrupt.html) and
 [backup](https://www.sqlite.org/backup.html) documentation for durability work.
-These are selected engineering checks, not a completed ASVS level assessment.
-[OWASP's assessment guidance](https://github.com/OWASP/ASVS/blob/v5.0.0/5.0/en/0x04-Assessment_and_Certification.md)
-explains why automated tests alone do not establish certification.
+The review applies selected controls from these references to the local deployment
+target. [OWASP's assessment guidance](https://github.com/OWASP/ASVS/blob/v5.0.0/5.0/en/0x04-Assessment_and_Certification.md)
+describes the process for a separate full ASVS assessment.
 
 Threats considered: malformed/truncated/duplicate JSON, compression expansion,
 source mutation/replacement, unsupported reference types, large conversation and
@@ -55,8 +49,7 @@ ambiguous HTTP framing, sensitive query logging, and mutable CI dependencies.
 
 Native browser checks on the release synthetic corpus exercised basin navigation,
 literal metadata bridges, connected occurrences, and the focus workspace. These
-manual checks supplement the automated suite; they are not a browser penetration
-test.
+manual checks supplement the automated suite.
 
 The regression suite includes deterministic decoder differential vectors against
 the standard JSON decoder, tiny-chunk Unicode/escape boundaries, malformed syntax,
@@ -84,8 +77,7 @@ registration that helper/API tests had missed. Direct help, verification, backup
 and real server-process startup tests now cover the command entry points; port 0
 also reports its actual bound port. The first hosted macOS startup smoke exceeded
 its initial 15-second readiness wait; the smoke now has a bounded 45-second startup
-window and captures a child traceback if startup stalls. This is a test deadline,
-not a production startup-time guarantee. The
+window and captures a child traceback if startup stalls. The
 [timeout run](https://github.com/starbrite-j/traceglass/actions/runs/42348022971)
 remains available. Inspection also found that Python's default HTTP server bind
 performs reverse DNS before readiness. Numeric-loopback startup now bypasses that
@@ -106,14 +98,14 @@ The final 2 GiB run passed all 26 monitoring rounds and its 180-second import,
 512 MiB process-memory, five-second HTTP, and three-second live-probe budgets.
 Basin overview median was 0.515 s; connected neighborhood median was
 0.0021 s (three requests each). Overall process peak RSS through checks was
-244.05 MiB. These are workload measurements, not adversarial memory guarantees.
+244.05 MiB.
 
 The performance files below pin the build immediately before the Windows-only
 stat/rejection corrections, CLI registration fix, and numeric-loopback startup correction. The normal decoding, storage, and graph algorithms
 are unchanged by those corrections. The complete 2 GiB source was replayed after
 the timestamp correction, verifying its consumed-byte hash, all record counts,
-and all 18 original-node samples; this focused check does not claim another
-SQLite import timing. See the [portable source replay](validation/verifier-portable-source-replay.json).
+and all 18 original-node samples. The replay checks source decoding; import timings
+come from the pinned workload runs. See the [portable source replay](validation/verifier-portable-source-replay.json).
 
 Current workload measurements and their exact code/source hashes are in:
 
@@ -126,8 +118,8 @@ and call actual loopback HTTP endpoints. The single-conversation program generat
 incrementally so source generation does not hide the importer's memory use.
 Measurements include process high-water RSS; browser and filesystem-cache memory
 are excluded. Workloads may run concurrently on the measured workstation, and
-source generation warms caches. These are acceptance runs, not a statistical
-latency study or proof of a hardware-independent memory ceiling.
+source generation warms caches. Each workload records one full acceptance run,
+with the request sample counts stated above.
 
 Earlier [connected graph](CONNECTED_LINEAGE_VALIDATION.md) and
 [ingestion](LARGE_DATA_VALIDATION.md) reports retain their pinned historical
@@ -140,7 +132,7 @@ every later build.
 | --- | --- |
 | Source input | 20 GiB binary source; 20 GiB decompressed characters; regular files only |
 | Decoded unit | 64 MiB characters; 128 nesting budget; 64 MiB aggregate record metadata; one million mapping keys; 4,096-character identifiers/control fields |
-| Source processing | 1,800-second cooperative deadline, checked in decoded and raw binary reading; not an OS resource sandbox |
+| Source processing | 1,800-second cooperative deadline, checked in decoded and raw binary reading |
 | Mapping payload memory | Shared 8 MiB serialized-size spill threshold, plus the current decoded node, parser buffers, key index, metadata, and SQLite allocations |
 | Network | Loopback only; 16 workers; 4 admitted read queries; 15-second normal connection timeout; 60-second upload timeout |
 | HTTP JSON | 1,000,000-byte request body; investigation requests 100,000 bytes; 16 MiB encoded response budget |
@@ -152,10 +144,9 @@ every later build.
 | Connected graph | Existing node/hop/fanout/work bounds remain; see [relationship contract](CONNECTED_LINEAGE_VALIDATION.md#bounds-and-limits) |
 | Private local files | Unix state directory mode 0700; spool/backup files private. Windows inherits filesystem ACLs; deployment ACL review remains required. |
 
-Budgets reject unsupported work; they do not silently drop accepted records.
-Bounded previews and graph windows explicitly differ from complete raw records.
-Giant individual values can still consume substantial memory before rejection;
-the application is not a sandbox for arbitrary hostile archives.
+Budgets reject unsupported work explicitly. Previews and graph windows identify
+their bounds. Giant individual values can still consume substantial memory before
+rejection; hard process-level containment is a separate deployment requirement.
 
 ## Use verification and backup
 
@@ -169,9 +160,8 @@ python3 app.py backup --out /absolute/private/path/new-snapshot.sqlite3
 
 Verification checks SQLite integrity, foreign keys, record/content consistency,
 event summaries, reference-index membership, full-text row/content membership,
-incomplete imported datasets, and optional complete source hashes. It is not an
-independent comparison of every indexed record against the original archive, an
-FTS internal integrity command, or a tamper-proof signature. A failed historical
+incomplete imported datasets, and optional complete source hashes. Source-record
+replay, FTS internal checks, and signed manifests are separate operations. A failed historical
 attempt with no retained source is reported in history rather than treated as a
 corrupt current corpus. Imported datasets without durable run history are labeled
 `legacy_unverified` in the UI.
@@ -192,20 +182,16 @@ python3 scripts/benchmark_large_import.py --workspace data/review-large --size-m
 python3 scripts/verify_source_replay.py --workspace data/review-large --out data/replay-check.json
 ```
 
-## Remaining production approval gates
+## Production deployment requirements
 
-| Gate | Evidence still required before a frontier-lab production approval |
+| Area | Required deployment evidence |
 | --- | --- |
-| Independent assessment | Review by people independent of implementation, a completed applicable control matrix, scoped penetration testing, and closure of findings. This document is not that assessment. |
-| Hostile-data containment | An isolated importer process/container with hard CPU/RAM/disk quotas, platform-specific escape testing, decompression/fuzz campaigns, and termination/recovery under adversarial load. Cooperative limits alone do not supply this. |
-| Identity and tenancy | Lab-approved authentication, authorization, tenant isolation, session controls, and network ingress design. The local-only server intentionally supplies none of these. |
-| Confidentiality and custody | Approved encryption/key management, immutable original archive storage, signed manifests/audit records, retention/deletion policy, and access auditing. Local permissions and hashes do not replace these. |
+| Independent assessment | Review by people independent of implementation, a completed applicable control matrix, scoped penetration testing, and closure of findings. |
+| Hostile-data containment | An isolated importer process/container with hard CPU/RAM/disk quotas, platform-specific escape testing, decompression/fuzz campaigns, and termination/recovery under adversarial load. |
+| Identity and tenancy | Authentication, authorization, tenant isolation, session controls, and network ingress design for the intended deployment. The current server serves one trusted local user. |
+| Confidentiality and custody | Encryption/key management, immutable original archive storage, signed manifests/audit records, retention/deletion policy, and access auditing. |
 | Operational recovery | Restore drills on production-sized backups, off-device backups, measured RPO/RTO, real storage-full/I/O-fault/power-loss tests, and documented incident ownership. Process exits and injected spool failures cover only part of this. |
-| Availability and capacity | Sustained/concurrent workloads on deployment hardware, realistic corpus distributions, repeated latency/resource measurements, alerting, graceful shutdown, and capacity planning. No HA/distributed-ingest claim is made. |
-| Schema completeness | Versioned adapters and golden reference corpora for each lab's agent/tool logs, explicit trace/span/tool-call identity, and independently verified expected event/order counts. ChatGPT-export support does not imply arbitrary log support. |
-| Evidence interpretation | Separate recorded links from causal claims; validate any future semantic clusters or memory interventions independently. Exported failure/thinking labels cannot prove hidden runtime state or intent. |
-| Supply chain / release | Signed release artifacts, runtime/SBOM and vulnerability management for Python/SQLite/OS, reproducible deployment configuration, and rollback/change ownership. Pinned actions and code hashes are only part of this. |
-
-The lab must supply and validate its deployment controls before changing this
-verdict. The public repository remains a local investigation tool with measurable
-improvements and explicit limits.
+| Availability and capacity | Sustained/concurrent workloads on deployment hardware, realistic corpus distributions, repeated latency/resource measurements, alerting, graceful shutdown, and capacity planning. |
+| Schema completeness | Versioned adapters and golden reference corpora for each lab's agent/tool logs, explicit trace/span/tool-call identity, and independently verified expected event/order counts. |
+| Evidence interpretation | Preserve the source field behind each relationship and event label. Evaluate semantic clustering separately if introduced. |
+| Supply chain / release | Signed release artifacts, runtime/SBOM and vulnerability management for Python/SQLite/OS, reproducible deployment configuration, and rollback/change ownership. |

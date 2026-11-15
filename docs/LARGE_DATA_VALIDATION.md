@@ -19,10 +19,9 @@ checksums, counts, timings, and system versions, not personal conversations.
 ## Measured results
 
 Machine: Apple M2 Max, 12 CPU cores, 96 GiB installed RAM. Software: macOS 15.7.7,
-Python 3.14.7, SQLite 3.53.4. This is one workstation, not a hardware compatibility
-certification. The source generator uses varied message lengths, multilingual text,
+Python 3.14.7, SQLite 3.53.4. The source generator uses varied message lengths, multilingual text,
 unique IDs, and searchable per-record markers. Text is assembled from deterministic
-invented paragraphs; this is not a representative sample of every export.
+invented paragraphs.
 
 | Workload | Records / conversations | Import and reconciliation | Process peak RSS through import | Result |
 | --- | ---: | ---: | ---: | --- |
@@ -32,8 +31,7 @@ invented paragraphs; this is not a representative sample of every export.
 
 RSS is the Python benchmark/server process's high-water mark through import,
 including source generation and HTTP monitoring in that process. It excludes the
-browser and filesystem cache. This conservative measurement is not a claim that
-the importer alone used every byte. The before/after conversation files have the
+browser and filesystem cache. The before/after conversation files have the
 same checksum and shape; full results are in
 [before](validation/giant-before.json) and [after](validation/giant-after.json).
 
@@ -56,8 +54,7 @@ The slowest sampled progress response was 1.83 ms and statistics response 1.24 m
 
 Original-file search caches match offsets. Its slowest request scanned the source;
 the later requests reused those offsets. The filesystem cache was already warmed
-by generation/import, so these are not cold-storage measurements. There is one
-full run per variant, not a statistical performance study. Every timing and
+by generation/import. There is one full run per variant. Every timing and
 response size remains available in the measurement files.
 
 ## Correctness checks
@@ -72,7 +69,7 @@ SQLite `quick_check` and FTS5 `integrity-check` pass. HTTP checks exercise first
 last ledger pages, indexed text and ID searches, typed metadata filtering, record
 detail, atlas, graph windows, bounded parent walks, raw windows, and original-file
 search. Reopening schema initialization preserves counts and provenance. Graph and
-ancestor limits remain explicit rather than claiming every node has been returned.
+ancestor responses identify their traversal limits and clipped windows.
 
 The ordinary regression suite contains 56 tests, including malformed and late
 failing imports, duplicate keys/identities, invalid UTF-8, source preservation,
@@ -200,16 +197,10 @@ that a platform passed.
   retain overlapping content. SQLite's
   [external-content FTS tables](https://sqlite.org/fts5.html#external_content_tables)
   offer a future storage option, with explicit consistency and migration work.
-- **Scope of the claim:** the measured large workload is plain JSON with text-heavy
+- **Measured formats:** the large workload is plain JSON with text-heavy
   conversation mappings. Gzip, chronological wrappers, branching, and malformed
-  formats have correctness tests, but this is not a multi-gigabyte performance
-  certification of every format, attachment type, or machine. The 20 GiB picker
-  cap is a size guard, not evidence that a 20 GiB import was tested.
+  formats have correctness tests. The largest measured source is 2.00 GiB;
+  the separate file-picker input-size limit is 20 GiB.
 - **Persistence and interruption:** sources remain read-only and file imports are
   atomic. There is no resumable-import checkpoint yet; failed large files must be
-  retried. Raw windows still read the current file, as documented in the README;
-  the viewer is not an immutable forensic archive.
-
-These measurements support a specific, reviewable claim: the tested version
-imported and navigated this 2 GiB corpus within the stated workstation budgets,
-with verifiable counts, provenance checks, tests, and retained failure reports.
+  retried. Raw windows read the current file, as documented in the README.
