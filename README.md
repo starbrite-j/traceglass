@@ -7,10 +7,8 @@ interactive lineage graphs, metadata inspection, export comparison, and an
 investigation notebook. It helps people and AI-assisted investigators ask concrete
 questions about timelines and trace answers back to source records.
 
-**Early preview — useful, evolving, and not a forensic certification tool.**
-Structural markers describe what the export contains, not what caused a model's
-behavior. A hidden system node, differing parent fields, or a missing record does
-not by itself establish a runtime failure or interference.
+**Early preview for local export investigation.** Graph connections and
+structural markers link back to the fields and records that supplied them.
 
 ## Run locally
 
@@ -47,7 +45,7 @@ Personal import is the main workflow. No real conversation exports are included.
   source in place without making another source copy. Prefer it for very large
   exports or multiple files. Keep those source files available and unchanged.
 - **Optional synthetic demo:** invented IDs, text, tool activity, and an intentional
-  parent mismatch demonstrate navigation. They are not historical evidence.
+  parent mismatch demonstrate navigation.
 
 Extract ZIP exports first. JSON arrays, whitespace-separated JSON/NDJSON/JSONL, and
 gzip are accepted. Conversation mappings and the supported chronological-record
@@ -64,8 +62,8 @@ python3 app.py import-sample
 ```
 
 Do not run CLI imports concurrently with a server import. To compare exports, keep
-them at different paths and import each export separately. Copies are retained;
-record counts are not a claim about the number of independent events. Same-path
+them at different paths and import each export separately. Copies retain separate
+source identities. Same-path
 reimport is deliberately refused in this preview to protect existing provenance.
 
 ## Explore from the outside in
@@ -84,9 +82,8 @@ Tool records and hidden metadata stay inspectable. Missing fields and explicit
 values remain available in record detail. Export disagreements are not silently
 resolved into a single "true" version.
 
-There is **no conversational model, voice service, or external inference API
-connected** in this release. The local notebook and bounded JSON endpoints provide
-a foundation for later AI-assisted workflows; they are not autonomous agents.
+Notebook inspection tools run locally through bounded JSON endpoints. This
+release uses no external inference or voice service.
 
 ## Privacy and boundaries
 
@@ -103,11 +100,10 @@ Treat exports and rendered metadata as sensitive, including screenshots.
 credentials, or a ZIP of your entire working folder to a public issue/repository.
 The synthetic demo is the only intended public sample data.
 
-## Known limits
+## Import and navigation limits
 
-- Import is incremental across top-level JSON values, **not constant-memory**:
-  the largest individual conversation/value must fit in memory. Indexes consume
-  disk space; there is no promise that every multi-gigabyte export fits every PC.
+- Import is incremental across top-level JSON values. The largest individual
+  conversation/value must fit in memory, and indexes require additional disk space.
 - Duplicate JSON keys, invalid UTF-8, conflicting mapping-key/node identities, and
   repeated indexed identities within one file fail rather than select a winner.
   The failing file rolls back; earlier files in a multi-file import may remain.
@@ -121,8 +117,8 @@ The synthetic demo is the only intended public sample data.
 - Graph and ancestor walks are bounded. Large conversations still require some
   whole-conversation metadata work. Children-only edges, unusual export schemas,
   and cross-conversation references need careful source inspection.
-- Annotations require **SAVE**. Unsaved drafts are not durable. Notebook findings
-  are investigator assessments, not automatically verified facts.
+- Annotations require **SAVE** to persist. Notebook findings record investigator
+  assessments alongside their pinned source records.
 
 Back up source archives independently. To start an empty workspace, stop the server
 and move `data/` to a safe backup location; restarting creates a new local database.
